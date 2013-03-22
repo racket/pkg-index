@@ -6,7 +6,7 @@
          racket/port
          net/url
          file/md5
-         planet2/util)
+         pkg/util)
 
 (define (gravatar-hash email)
   (bytes->string/utf-8
