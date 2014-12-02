@@ -21,7 +21,7 @@
                                          (write (list the-email
                                                       (string->bytes/utf-8 the-password)
                                                       the-post))))))
-                    port->bytes))
+                    (lambda (p) (begin0 (port->bytes p) (close-input-port p)))))
   (define v (port->string (open-input-bytes bs)))
   (displayln v)
   v)
