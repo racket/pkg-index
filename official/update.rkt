@@ -17,6 +17,7 @@
   (for-each (curry update-checksum force?) pkgs))
 
 (define (update-checksum force? pkg-name)
+  (log! "update-checksum ~v ~v" force? pkg-name)
   (with-handlers
       ([exn:fail?
         (λ (x)
@@ -34,7 +35,7 @@
     (define last (hash-ref i 'last-checked -inf.0))
     (when (or force?
               (>= (- now last) (* 1 60 60)))
-      (printf "\tupdating ~a\n" pkg-name)
+      (log! "\tupdating ~a" pkg-name)
       (define new-checksum
         (package-url->checksum
          (package-ref i 'source)
@@ -88,17 +89,17 @@
   (cond
     [(empty? pkgs)
      (update-all)
-     (run-static! empty)]
+     (signal-static! empty)]
     [else
      (update-pkgs pkgs)
-     (run-static! pkgs)]))
+     (signal-static! pkgs)]))
 (define (run-update! pkgs)
   (run! do-update! pkgs))
+(define run-sema (make-semaphore 1))
 (define (signal-update! pkgs)
-  (thread (λ () (run-update! pkgs))))
+  (thread (λ () (call-with-semaphore run-sema (λ () (run-update! pkgs))))))
 
 (provide do-update!
-         run-update!
          signal-update!)
 
 (module+ main

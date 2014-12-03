@@ -64,6 +64,7 @@
   (define build-summary (file->value* SUMMARY-PATH (hash)))
 
   (for ([pkg-name (in-list pkg-list)])
+    (log! "static: building ht for ~v" pkg-name)
     (define ht (file->value (build-path pkgs-path pkg-name)))
 
     (define versions-ht
@@ -189,6 +190,7 @@
        pkg-url-str]))
 
   (for ([pkg (in-hash-keys pkg-ht)])
+    (log! "static: computing detailed ht for ~v" pkg)
     (define pb (hash-ref build-summary pkg #f))
     (define (pbl k)
       (and pb (hash-ref pb k #f)))
@@ -277,7 +279,6 @@
                        (hash-set st ':docs-error: #t)
                        st)])
           st)))))
-
 
   (define basic-dispatch
     (pkg-index/basic
@@ -385,37 +386,42 @@
      [else
       (error 'copy-directory/files+ "Unknown kind of source ~v" src)]))
 
+  (log! "static: copying ~v to ~v" static.src-path static-path)
   (copy-directory/files+
    static.src-path
    static-path)
 
+  (log! "static: caching database")
   (cache "/atom.xml" "atom.xml")
   (cache "/pkgs" "pkgs")
   (cache "/pkgs-all" "pkgs-all")
   (for ([p (in-list pkg-list)])
+    (log! "static: caching ~v" p)
     (cache (format "/pkg/~a" p) (format "pkg/~a" p)))
 
   (let ()
+    (log! "static: removing deleted files")
     (define pkg-path (build-path static-path "pkg"))
     (for ([f (in-list (directory-list pkg-path))]
           #:unless (regexp-match #"json$" (path->string f))
           #:unless (member (path->string f) pkg-list))
+      (log! "static: removing ~v" f)
       (with-handlers ([exn:fail:filesystem? void])
         (delete-file (build-path pkg-path f))
         (delete-file (build-path pkg-path (path-add-suffix f #".json")))))))
 
 (define (do-static pkgs)
   (notify! "update upload being computed: the information below may not represent all recent changes and updates")
-  ;; FUTURE make this more efficient by looking at pkgs
+  ;; XXX make this more efficient by looking at pkgs
   (generate-static)
-  (run-s3! pkgs))
+  (signal-s3! pkgs))
 (define (run-static! pkgs)
   (run! do-static pkgs))
+(define run-sema (make-semaphore 1))
 (define (signal-static! pkgs)
-  (thread (λ () (run-static! pkgs))))
+  (thread (λ () (call-with-semaphore run-sema (λ () (run-static! pkgs))))))
 
 (provide do-static
-         run-static!
          signal-static!)
 
 (module+ main

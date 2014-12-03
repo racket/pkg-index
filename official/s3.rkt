@@ -9,12 +9,14 @@
          "notify.rkt")
 
 (define (upload-all)
+  (log! "upload: doing gzip")
   (gzip (format "~a/pkgs-all.json" static-path)
         (format "~a/pkgs-all.json.gz" static-path))
 
   (delete-file (format "~a/pkgs-all.json" static-path))
 
   (notify! "update upload in progress: there may be inconsistencies below")
+  (log! "upload: uploading gzips")
   (system* s3cmd-path
            "-c" s3-config
            "sync"
@@ -25,6 +27,7 @@
            (format "~a/pkgs-all.json.gz" static-path)
            (format "s3://~a/pkgs-all.json.gz" s3-bucket))
 
+  (log! "upload: uploading everything else")
   (system* s3cmd-path
            "-c" s3-config
            "sync"
@@ -38,15 +41,15 @@
   (void))
 
 (define (upload-pkgs pkgs)
-  ;; FUTURE make this more efficient
+  ;; XXX make this more efficient
   (upload-all))
 (define (run-s3! pkgs)
   (run! upload-pkgs pkgs))
+(define run-sema (make-semaphore 1))
 (define (signal-s3! pkgs)
-  (thread (λ () (run-s3! pkgs))))
+  (thread (λ () (call-with-semaphore run-sema (λ () (run-s3! pkgs))))))
 
 (provide upload-pkgs
-         run-s3!
          signal-s3!)
 
 (module+ main

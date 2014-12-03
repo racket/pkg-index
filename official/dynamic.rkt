@@ -52,7 +52,9 @@
                (curation-administrator? email)))
      (response/sexpr #f)]
     [else
+     (log! "receiving api/upload!")
      (for ([(p more-pi) (in-hash pis)])
+       (log! "received api/upload for ~a" p)
        (define pi (if (package-exists? p)
                     (package-info p)
                     #hash()))
@@ -62,8 +64,8 @@
            (for/fold ([pi new-pi])
                ([k (in-list '(last-edit last-checked last-updated))])
              (hash-set pi k now))))
-       (package-info-set! p updated-pi)
-       (signal-update! (list p)))
+       (package-info-set! p updated-pi))
+     (signal-update! (hash-keys pis))
      (response/sexpr #t)]))
 
 (define (redirect-to-static req)
@@ -418,15 +420,16 @@
   (let loop () (begin . body) (loop)))
 
 (define (go port)
-  (printf "launching on port ~a\n" port)
+  (log! "launching on port ~v" port)
   (signal-static! empty)
   (thread
    (λ ()
      (forever
-      (printf "Running scheduled build update.\n")
+      (log! "update-t: Running scheduled build update.")
       (signal-build-update!)
-      (printf "Running scheduled update.\n")
-      (signal-update! empty)      
+      (log! "update-t: Running scheduled update.")
+      (signal-update! empty)
+      (log! "update-t: sleeping for 1 hour")
       (sleep (* 1 60 60)))))
   (serve/servlet
    main-dispatch

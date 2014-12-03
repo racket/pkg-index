@@ -32,7 +32,7 @@
 (define (build-update!)
   (define cur-version
     (file->bytes* SUMMARY-ETAG-PATH #""))
-  (printf "Current: ~v\n" cur-version)
+  (log! "build-update: Current: ~v\n" cur-version)
 
   (define-values
     (_0 head-headers _1)
@@ -41,7 +41,7 @@
      #:method #"HEAD"))
   (define head-version
     (extract-tag head-headers))
-  (printf "Head: ~v\n" head-version)
+  (log! "build-update: Head: ~v\n" head-version)
 
   (unless (bytes=? cur-version head-version)
     (define-values
@@ -51,7 +51,7 @@
        #:method #"GET"))
     (define get-version
       (extract-tag get-headers))
-    (printf "Get: ~v\n" get-version)
+    (log! "build-update: Get: ~v\n" get-version)
 
     (define new-file
       (make-temporary-file "summary-~a.rktd" #f cache-path))
@@ -73,11 +73,11 @@
   (notify! ""))
 (define (run-build-update!)
   (run! do-build-update! empty))
+(define run-sema (make-semaphore 1))
 (define (signal-build-update!)
-  (thread (λ () (run-build-update!))))
+  (thread (λ () (call-with-semaphore run-sema (λ () (run-build-update!))))))
 
 (provide do-build-update!
-         run-build-update!
          signal-build-update!)
 
 (module+ main
