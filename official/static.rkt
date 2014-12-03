@@ -331,7 +331,7 @@
                                       (hash-ref (hash-ref (hash-ref i 'versions (hash)) 
                                                           'default (hasheq))
                                                 'checksum "")))
-                                 (p ,(hash-ref i 'description))))))))))))
+                                 (p ,(hash-ref i 'description ""))))))))))))
 
   (define-values (main-dispatch main-url)
     (dispatch-rules
