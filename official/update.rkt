@@ -14,7 +14,7 @@
   (update-checksums #t pkgs))
 
 (define (update-checksums force? pkgs)
-  (for-each (curry update-checksum force?) pkgs))
+  (filter (curry update-checksum force?) pkgs))
 
 (define (update-checksum force? pkg-name)
   (log! "update-checksum ~v ~v" force? pkg-name)
@@ -27,12 +27,13 @@
            (hash-set i 'checksum-error
                      (regexp-replace* (regexp (github-client_secret))
                                       (exn-message x)
-                                      "REDACTED"))))])
+                                      "REDACTED")))
+          #t)])
     (define i (package-info pkg-name))
-    (define old-checksum
-      (package-ref i 'checksum))
+    (define old-checksum (package-ref i 'checksum))
     (define now (current-seconds))
     (define last (hash-ref i 'last-checked -inf.0))
+    (define changed? #f)
     (when (or force?
               (>= (- now last) (* 1 60 60)))
       (log! "\tupdating ~a" pkg-name)
@@ -40,6 +41,8 @@
         (package-url->checksum
          (package-ref i 'source)
          #:pkg-name pkg-name))
+      (unless (equal? new-checksum old-checksum)
+        (set! changed? #t))
       (package-begin
        (define* i
          (hash-set i 'checksum
@@ -56,6 +59,8 @@
                             (package-url->checksum
                              (hash-ref vi 'source "")
                              #:pkg-name pkg-name))
+                          (unless (equal? new-checksum old-checksum)
+                            (set! changed? #t))
                           (values v
                                   (hash-set vi 'checksum
                                             (or new-checksum
@@ -65,11 +70,12 @@
          (if (and new-checksum (equal? new-checksum old-checksum)
                   ;; update if 'modules was not present:
                   (hash-ref i 'modules #f))
-           i
-           (hash-set (update-from-content i) 'last-updated now)))
+             i
+             (hash-set (update-from-content i) 'last-updated now)))
        (define* i
          (hash-set i 'checksum-error #f))
-       (package-info-set! pkg-name i)))))
+       (package-info-set! pkg-name i)))
+    changed?))
 
 (define (update-from-content i)
   (define-values (checksum module-paths dependencies)
@@ -83,16 +89,13 @@
    (define* i (hash-set i 'dependencies dependencies))
    i))
 
-
 (define (do-update! pkgs)
   (notify! "package sources being checked for updates")
   (cond
-    [(empty? pkgs)
-     (update-all)
-     (signal-static! empty)]
-    [else
-     (update-pkgs pkgs)
-     (signal-static! pkgs)]))
+   [(empty? pkgs)
+    (signal-static! (update-all))]
+   [else
+    (signal-static! (update-pkgs pkgs))]))
 (define (run-update! pkgs)
   (run! do-update! pkgs))
 (define run-sema (make-semaphore 1))
