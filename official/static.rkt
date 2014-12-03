@@ -48,8 +48,8 @@
 
 (define (file->value* p dv)
   (if (file-exists? p)
-    (file->value p)
-    dv))
+      (file->value p)
+      dv))
 
 ;; From pkg-build/summary
 (struct doc/main (name path) #:prefab)
@@ -105,10 +105,10 @@
 
   (define (format-time s)
     (if s
-      (with-handlers ([exn:fail? (λ (x) "")])
-        (parameterize ([date-display-format 'iso-8601])
-          (date->string (seconds->date s #f) #t)))
-      ""))
+        (with-handlers ([exn:fail? (λ (x) "")])
+          (parameterize ([date-display-format 'iso-8601])
+            (date->string (seconds->date s #f) #t)))
+        ""))
 
   (define (module-lists-conflict? left right)
     (define seen? (make-hash))
@@ -119,13 +119,13 @@
 
   (define (string-min x y)
     (if (string<=? x y)
-      x
-      y))
+        x
+        y))
 
   (define (string-max x y)
     (if (string<? x y)
-      y
-      x))
+        y
+        x))
 
   (define (packages-conflict? left right)
     (define left-i (package-info left))
@@ -133,10 +133,10 @@
     (define left-m (and left-i (hash-ref left-i 'modules #f)))
     (define right-m (and right-i (hash-ref right-i 'modules #f)))
     (if (and left-m right-m)
-      (module-lists-conflict? left-m right-m)
-      ;; We have to say #t here because otherwise things with no
-      ;; information won't be conflicting.
-      #t))
+        (module-lists-conflict? left-m right-m)
+        ;; We have to say #t here because otherwise things with no
+        ;; information won't be conflicting.
+        #t))
 
   (define conflict-cache
     (make-hash))
@@ -155,8 +155,8 @@
   (define (package-conflicts? pkg)
     (filter (λ (other-pkg)
               (if (equal? pkg other-pkg)
-                #f
-                (packages-conflict?/cache pkg other-pkg)))
+                  #f
+                  (packages-conflict?/cache pkg other-pkg)))
             ring-01))
 
   (define (package-url->useful-url pkg-url-str)
@@ -203,7 +203,7 @@
         (hash 'success-log (pbl 'success-log)
               'failure-log (pbl 'failure-log)
               'dep-failure-log (pbl 'dep-failure-log)
-              'conflicts-log 
+              'conflicts-log
               (match (pbl 'conflicts-log)
                 [#f #f]
                 [(? path-string? f) f]
@@ -225,40 +225,40 @@
         'search-terms
         (let* ([st (hasheq)]
                [st (for/fold ([st st])
-                       ([t (in-list (hash-ref ht 'tags))])
+                             ([t (in-list (hash-ref ht 'tags))])
                      (hash-set st (string->symbol t) #t))]
                [st (hash-set
                     st
                     (string->symbol
                      (format "ring:~a" (hash-ref ht 'ring))) #t)]
                [st (for/fold ([st st])
-                       ([a (in-list (author->list (hash-ref ht 'author)))])
+                             ([a (in-list (author->list (hash-ref ht 'author)))])
                      (hash-set
                       st (string->symbol (format "author:~a" a)) #t))]
                [st (if (empty? (hash-ref ht 'tags))
-                     (hash-set st ':no-tag: #t)
-                     st)]
+                       (hash-set st ':no-tag: #t)
+                       st)]
                [st (if (hash-ref ht 'checksum-error #f)
-                     (hash-set st ':error: #t)
-                     st)]
+                       (hash-set st ':error: #t)
+                       st)]
                [st (if (equal? "" (hash-ref ht 'description ""))
-                     (hash-set st ':no-desc: #t)
-                     st)]
+                       (hash-set st ':no-desc: #t)
+                       st)]
                [st (if (empty? conflicts)
-                     st
-                     (hash-set st ':conflicts: #t))]
-               [st (if (pbl 'success-log)                     
-                     (hash-set st ':build-success: #t)
-                     st)]
-               [st (if (pbl 'failure-log)                     
-                     (hash-set st ':build-fail: #t)
-                     st)]
-               [st (if (pbl 'dep-failure-log)                     
-                     (hash-set st ':build-dep-fail: #t)
-                     st)]
-               [st (if (pbl 'conflicts-log)                     
-                     (hash-set st ':build-conflicts: #t)
-                     st)]
+                       st
+                       (hash-set st ':conflicts: #t))]
+               [st (if (pbl 'success-log)
+                       (hash-set st ':build-success: #t)
+                       st)]
+               [st (if (pbl 'failure-log)
+                       (hash-set st ':build-fail: #t)
+                       st)]
+               [st (if (pbl 'dep-failure-log)
+                       (hash-set st ':build-dep-fail: #t)
+                       st)]
+               [st (if (pbl 'conflicts-log)
+                       (hash-set st ':build-conflicts: #t)
+                       st)]
                [pb-docs (pbl 'docs)]
                [st (if (and pb-docs (cons? pb-docs)
                             (andmap (λ (d)
@@ -266,16 +266,16 @@
                                           (doc/extract? d)
                                           (doc/salvage? d)))
                                     pb-docs))
-                     (hash-set st ':docs: #t)
-                     st)]
+                       (hash-set st ':docs: #t)
+                       st)]
                [st (if (and pb-docs (cons? pb-docs)
                             (andmap (λ (d)
                                       (or (doc/extract? d)
                                           (doc/salvage? d)
                                           (doc/none? d)))
                                     pb-docs))
-                     (hash-set st ':docs-error: #t)
-                     st)])
+                       (hash-set st ':docs-error: #t)
+                       st)])
           st)))))
 
 
@@ -328,7 +328,7 @@
                                              p lu))
                                  (p ,(format
                                       "Checksum: ~a"
-                                      (hash-ref (hash-ref (hash-ref i 'versions (hash)) 
+                                      (hash-ref (hash-ref (hash-ref i 'versions (hash))
                                                           'default (hasheq))
                                                 'checksum "")))
                                  (p ,(hash-ref i 'description ""))))))))))))
@@ -348,9 +348,9 @@
 
     (define bs
       (with-output-to-bytes
-       (λ ()
-         ((response-output (main-dispatch (url->request url)))
-          (current-output-port)))))
+          (λ ()
+            ((response-output (main-dispatch (url->request url)))
+             (current-output-port)))))
     (unless (and (file-exists? p)
                  (bytes=? bs (file->bytes p)))
       (with-output-to-file p
@@ -360,10 +360,34 @@
         #:exists 'replace
         (λ () (write-json (convert-to-json (file->value p))))))
     (void))
+  
+  (define (copy-directory/files+ src dest)
+    (cond
+     [(directory-exists? src)
+      (cond [(directory-exists? dest)
+             (void)]
+            [(file-exists? dest)
+             (error 'copy-directory/files+ "Can't copy dir ~v to file ~v" src dest)]
+            [else
+             (make-directory dest)])
+      (for ([p (in-list (directory-list src))])
+        (copy-directory/files+ (build-path src p) (build-path dest p)))]
+     [(file-exists? src)
+      (cond [(directory-exists? dest)
+             (error 'copy-directory/files+ "Can't copy file ~v to dir ~v" src dest)]
+            [(file-exists? dest)
+             (copy-file src dest #t)]
+            [else
+             (copy-file src dest)])
+      (file-or-directory-modify-seconds	
+       dest
+       (file-or-directory-modify-seconds src))]
+     [else
+      (error 'copy-directory/files+ "Unknown kind of source ~v" src)]))
 
-  (system (format "cp -pr ~a/* ~a/"
-                  static.src-path
-                  static-path))
+  (copy-directory/files+
+   static.src-path
+   static-path)
 
   (cache "/atom.xml" "atom.xml")
   (cache "/pkgs" "pkgs")
@@ -382,7 +406,7 @@
 
 (define (do-static pkgs)
   (notify! "update upload being computed: the information below may not represent all recent changes and updates")
-   ;; FUTURE make this more efficient by looking at pkgs
+  ;; FUTURE make this more efficient by looking at pkgs
   (generate-static)
   (run-s3! pkgs))
 (define (run-static! pkgs)
