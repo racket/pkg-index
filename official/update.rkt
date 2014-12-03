@@ -1,7 +1,7 @@
 #lang racket/base
 (require racket/list
          racket/function
-         pkg/private/stage
+         pkg/util
          racket/package
          (prefix-in pkg: pkg/lib)
          "common.rkt"
