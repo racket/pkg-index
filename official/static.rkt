@@ -5,6 +5,7 @@
          racket/port
          racket/system
          racket/match
+         racket/set
          json
          racket/date
          net/url
@@ -58,12 +59,13 @@
 (struct doc/none (name) #:prefab)
 (struct conflicts/indirect (path) #:prefab)
 
-(define (generate-static)
-  (define pkg-list (package-list))
+(define (generate-static pkgs)
+  (define all-pkg-list (package-list))
+  (define these-pkg-list pkgs)
   (define pkg-ht (make-hash))
   (define build-summary (file->value* SUMMARY-PATH (hash)))
 
-  (for ([pkg-name (in-list pkg-list)])
+  (for ([pkg-name (in-list all-pkg-list)])
     (log! "static: building ht for ~v" pkg-name)
     (define ht (file->value (build-path pkgs-path pkg-name)))
 
@@ -98,6 +100,10 @@
                 'ring (hash-ref ht 'ring 2)
                 'dependencies (hash-ref ht 'dependencies empty)
                 'modules (hash-ref ht 'modules empty)
+                'conflicts (hash-ref ht 'conflicts
+                                     (λ ()
+                                       (set! these-pkg-list (cons pkg-name these-pkg-list))
+                                       empty))
                 'tags (hash-ref ht 'tags empty)
                 'authors (author->list (hash-ref ht 'author "")))))
 
@@ -129,6 +135,7 @@
         x))
 
   (define (packages-conflict? left right)
+    (log! "static: computing conflict between ~v and ~v" left right)
     (define left-i (package-info left))
     (define right-i (package-info right))
     (define left-m (and left-i (hash-ref left-i 'modules #f)))
@@ -150,8 +157,9 @@
                (λ ()
                  (packages-conflict? smin smax))))
 
+  (log! "static: computing ring-01")
   (define ring-01
-    (filter (λ (p) (member (hash-ref (package-info p) 'ring) '(0 1))) pkg-list))
+    (filter (λ (p) (member (hash-ref (package-info p) 'ring) '(0 1))) all-pkg-list))
 
   (define (package-conflicts? pkg)
     (filter (λ (other-pkg)
@@ -159,6 +167,30 @@
                   #f
                   (packages-conflict?/cache pkg other-pkg)))
             ring-01))
+
+  (define changed-pkg-set (list->set these-pkg-list))
+  (log! "static: computing conflicts")
+  (define (compute-conflicts! some-pkgs)
+    (log! "static: computing conflicts: new round")
+    (define more-set (list->set '()))
+    (for ([pkg (in-list some-pkgs)])
+      (log! "static: computing conflicts for ~v" pkg)
+      (hash-update!
+       pkg-ht pkg
+       (λ (ht)
+         (define conflicts (package-conflicts? pkg))
+         (set! more-set (set-union more-set (list->set conflicts)))
+         (let ()
+           (package-info-set! pkg
+                              (hash-set (file->value (build-path pkgs-path pkg))
+                                        'conflicts conflicts)))
+         (hash-set ht 'conflicts conflicts))))
+    (set! more-set (set-subtract more-set changed-pkg-set))
+    (unless (set-empty? more-set)
+      (set! changed-pkg-set (set-union changed-pkg-set more-set))
+      (compute-conflicts! (set->list more-set))))
+  (compute-conflicts! these-pkg-list)
+  (define changed-pkg-list (set->list changed-pkg-set))
 
   (define (package-url->useful-url pkg-url-str)
     (define pkg-url
@@ -189,7 +221,7 @@
       [_
        pkg-url-str]))
 
-  (for ([pkg (in-hash-keys pkg-ht)])
+  (for ([pkg (in-list all-pkg-list)])
     (log! "static: computing detailed ht for ~v" pkg)
     (define pb (hash-ref build-summary pkg #f))
     (define (pbl k)
@@ -198,7 +230,7 @@
     (hash-update!
      pkg-ht pkg
      (λ (ht)
-       (define conflicts (package-conflicts? pkg))
+       (define conflicts (hash-ref ht 'conflicts))
        (hash-set*
         ht
         'build
@@ -218,7 +250,6 @@
                   [(doc/extract n p) (list "extract" n p)]
                   [(doc/salvage n p) (list "salvage" n p)]
                   [(doc/none n) (list "none" n)])))
-        'conflicts conflicts
         'versions
         (for/hash ([(v vht) (in-hash (hash-ref ht 'versions))])
           (values v
@@ -282,12 +313,12 @@
 
   (define basic-dispatch
     (pkg-index/basic
-     (λ () pkg-list)
+     (λ () all-pkg-list)
      (λ (pkg-name) (hash-ref pkg-ht pkg-name))))
 
   (define (page/atom.xml req)
     (define ps
-      (sort (map package-info pkg-list)
+      (sort (map package-info all-pkg-list)
             >
             #:key (λ (i) (hash-ref i 'last-updated))))
     (define top (hash-ref (first ps) 'last-updated))
@@ -361,7 +392,7 @@
         #:exists 'replace
         (λ () (write-json (convert-to-json (file->value p))))))
     (void))
-  
+
   (define (copy-directory/files+ src dest)
     (cond
      [(directory-exists? src)
@@ -380,7 +411,7 @@
              (copy-file src dest #t)]
             [else
              (copy-file src dest)])
-      (file-or-directory-modify-seconds	
+      (file-or-directory-modify-seconds
        dest
        (file-or-directory-modify-seconds src))]
      [else
@@ -395,7 +426,7 @@
   (cache "/atom.xml" "atom.xml")
   (cache "/pkgs" "pkgs")
   (cache "/pkgs-all" "pkgs-all")
-  (for ([p (in-list pkg-list)])
+  (for ([p (in-list changed-pkg-list)])
     (log! "static: caching ~v" p)
     (cache (format "/pkg/~a" p) (format "pkg/~a" p)))
 
@@ -404,17 +435,18 @@
     (define pkg-path (build-path static-path "pkg"))
     (for ([f (in-list (directory-list pkg-path))]
           #:unless (regexp-match #"json$" (path->string f))
-          #:unless (member (path->string f) pkg-list))
+          #:unless (member (path->string f) all-pkg-list))
       (log! "static: removing ~v" f)
       (with-handlers ([exn:fail:filesystem? void])
         (delete-file (build-path pkg-path f))
-        (delete-file (build-path pkg-path (path-add-suffix f #".json")))))))
+        (delete-file (build-path pkg-path (path-add-suffix f #".json"))))))
+
+  changed-pkg-list)
 
 (define (do-static pkgs)
   (notify! "update upload being computed: the information below may not represent all recent changes and updates")
-  ;; XXX make this more efficient by looking at pkgs
-  (generate-static)
-  (signal-s3! pkgs))
+  (define changed-pkgs (generate-static pkgs))
+  (signal-s3! changed-pkgs))
 (define (run-static! pkgs)
   (run! do-static pkgs))
 (define run-sema (make-semaphore 1))
