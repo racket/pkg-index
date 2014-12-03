@@ -1,7 +1,7 @@
 #lang racket/base
 (require racket/file
          racket/runtime-path
-         pkg/util
+         pkg/private/stage
          racket/match
          racket/list
          racket/date

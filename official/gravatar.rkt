@@ -1,12 +1,13 @@
 #lang racket/base
 (require racket/string
          racket/contract
+         pkg/private/stage
          xml
          xml/path
          racket/port
          net/url
-         file/md5
-         pkg/util)
+         pkg/private/download
+         file/md5)
 
 (define (gravatar-hash email)
   (bytes->string/utf-8
