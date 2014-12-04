@@ -100,10 +100,11 @@
                 'ring (hash-ref ht 'ring 2)
                 'dependencies (hash-ref ht 'dependencies empty)
                 'modules (hash-ref ht 'modules empty)
-                'conflicts (hash-ref ht 'conflicts
-                                     (λ ()
-                                       (set! these-pkg-list (cons pkg-name these-pkg-list))
-                                       empty))
+                'conflicts
+                (hash-ref ht 'conflicts
+                          (λ ()
+                            (set! these-pkg-list (cons pkg-name these-pkg-list))
+                            empty))
                 'tags (hash-ref ht 'tags empty)
                 'authors (author->list (hash-ref ht 'author "")))))
 
@@ -385,6 +386,7 @@
              (current-output-port)))))
     (unless (and (file-exists? p)
                  (bytes=? bs (file->bytes p)))
+      (log! "static: caching ~v" p)
       (with-output-to-file p
         #:exists 'replace
         (λ () (display bs)))
@@ -422,12 +424,14 @@
    static.src-path
    static-path)
 
+  ;; xxx
+  (set! changed-pkg-list all-pkg-list)
+
   (log! "static: caching database")
   (cache "/atom.xml" "atom.xml")
   (cache "/pkgs" "pkgs")
   (cache "/pkgs-all" "pkgs-all")
   (for ([p (in-list changed-pkg-list)])
-    (log! "static: caching ~v" p)
     (cache (format "/pkg/~a" p) (format "pkg/~a" p)))
 
   (let ()
@@ -451,7 +455,7 @@
   (run! do-static pkgs))
 (define run-sema (make-semaphore 1))
 (define (signal-static! pkgs)
-  (thread (λ () (call-with-semaphore run-sema (λ () (run-static! pkgs))))))
+  (safe-run! run-sema (λ () (run-static! pkgs))))
 
 (provide do-static
          signal-static!)

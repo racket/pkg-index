@@ -103,6 +103,16 @@
   (f args)
   (log! "END ~a ~v" f args))
 
+(define (safe-run! run-sema t)
+  (thread 
+   (λ () 
+     (call-with-semaphore run-sema 
+       (λ () 
+         (with-handlers ([exn:fail? (λ (x) ((error-display-handler) 
+                                            (exn-message x)
+                                            x))])
+           (t)))))))
+
 (define s3-config (build-path (find-system-path 'home-dir) ".s3cfg-plt"))
 (define s3-bucket "pkgs.racket-lang.org")
 

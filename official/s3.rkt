@@ -36,6 +36,7 @@
            "--delete-removed"
            (format "~a/" static-path)
            (format "s3://~a/" s3-bucket))
+  (log! "upload: done with upload")
   (notify! "")
 
   (void))
@@ -47,7 +48,7 @@
   (run! upload-pkgs pkgs))
 (define run-sema (make-semaphore 1))
 (define (signal-s3! pkgs)
-  (thread (λ () (call-with-semaphore run-sema (λ () (run-s3! pkgs))))))
+  (safe-run! run-sema (λ () (run-s3! pkgs))))
 
 (provide upload-pkgs
          signal-s3!)

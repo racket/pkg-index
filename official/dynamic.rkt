@@ -18,6 +18,8 @@
          file/sha1
          (prefix-in bcrypt- bcrypt)
          version/utils)
+(module+ test
+  (require rackunit))
 
 (define (package-remove! pkg-name)
   (delete-file (build-path pkgs-path pkg-name)))
@@ -38,6 +40,11 @@
                      [else
                       new-v]))
                  #f)))
+(module+ test
+  (check-equal?
+   (hash-deep-merge (hasheq 'source "http://aws" 'descript "DrRacket")
+                    (hasheq 'source "http://github"))
+   (hasheq 'source "http://github" 'descript "DrRacket")))
 
 (define (curation-administrator? u)
   (member u '("jay.mccarthy@gmail.com" "mflatt@cs.utah.edu" "samth@ccs.neu.edu")))
@@ -55,15 +62,23 @@
      (log! "receiving api/upload!")
      (for ([(p more-pi) (in-hash pis)])
        (log! "received api/upload for ~a" p)
-       (define pi (if (package-exists? p)
-                    (package-info p)
-                    #hash()))
+       (define pi 
+         (if (package-exists? p)
+             (package-info p)
+             #hash()))
        (define new-pi (hash-deep-merge pi more-pi))
        (define updated-pi
-         (let ([now (current-seconds)])
-           (for/fold ([pi new-pi])
-               ([k (in-list '(last-edit last-checked last-updated))])
-             (hash-set pi k now))))
+         (hash-remove
+          (let ([now (current-seconds)])
+            (for/fold ([pi new-pi])
+                      ([k (in-list '(last-edit last-checked last-updated))])
+              (hash-set pi k now)))
+          'checksum))
+       (log! "api/upload old ~v more ~v new ~v updated ~v"
+             (hash-ref pi 'source #f)
+             (hash-ref more-pi 'source #f)
+             (hash-ref new-pi 'source #f)
+             (hash-ref updated-pi 'source #f))
        (package-info-set! p updated-pi))
      (signal-update! (hash-keys pis))
      (response/sexpr #t)]))
@@ -434,6 +449,9 @@
   (serve/servlet
    main-dispatch
    #:command-line? #t
+   ;; xxx I am getting strange behavior on some connections... maybe
+   ;; this will help?
+   #:connection-close? #t
    #:listen-ip #f
    #:ssl? #t
    #:ssl-cert (build-path root "server-cert.pem")

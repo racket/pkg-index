@@ -75,7 +75,7 @@
   (run! do-build-update! empty))
 (define run-sema (make-semaphore 1))
 (define (signal-build-update!)
-  (thread (λ () (call-with-semaphore run-sema (λ () (run-build-update!))))))
+  (safe-run! run-sema (λ () (run-build-update!))))
 
 (provide do-build-update!
          signal-build-update!)
