@@ -41,7 +41,18 @@
   (sort (map path->string (directory-list pkgs-path))
         string-ci<=?))
 (define (package-info pkg-name #:version [version #f])
-  (define no-version (hash-set (file->value (build-path pkgs-path pkg-name)) 'name pkg-name))
+  (define p 
+    (build-path pkgs-path pkg-name))
+  (define v
+    (if (file-exists? p)
+        (file->value p)
+        (hasheq)))
+  (define ht
+    (if (hash? v)
+        v
+        (hasheq)))
+  (define no-version 
+    (hash-set ht 'name pkg-name))
   (cond
     [(and version
           (hash-ref no-version 'versions #f)
