@@ -21,13 +21,23 @@
   (with-handlers
       ([exn:fail?
         (λ (x)
-          (define i (package-info pkg-name))
-          (package-info-set!
-           pkg-name
-           (hash-set i 'checksum-error
-                     (regexp-replace* (regexp (github-client_secret))
-                                      (exn-message x)
-                                      "REDACTED")))
+          (with-handlers
+              ([exn:fail?
+                (λ (x2)
+                  ((error-display-handler)
+                   (format 
+                    "second error (~v) while catching error (~v) while updating (~v)"
+                    (exn-message x2)
+                    (exn-message x)
+                    pkg-name)
+                   x2))])
+            (define i (package-info pkg-name))
+            (package-info-set!
+             pkg-name
+             (hash-set i 'checksum-error
+                       (regexp-replace* (regexp (github-client_secret))
+                                        (exn-message x)
+                                        "REDACTED"))))
           #t)])
     (define i (package-info pkg-name))
     (define old-checksum (package-ref i 'checksum))
@@ -61,7 +71,7 @@
                           (define new-checksum
                             (package-url->checksum
                              (hash-ref vi 'source "")
-                             #:pkg-name pkg-name))                          
+                             #:pkg-name pkg-name))
                           (unless (equal? new-checksum old-checksum)
                             (log! "\t~a old: ~v" vi old-checksum)
                             (log! "\t~a new: ~v" vi new-checksum)

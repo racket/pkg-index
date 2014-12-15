@@ -55,8 +55,10 @@
     (hash-set ht 'name pkg-name))
   (cond
     [(and version
-          (hash-ref no-version 'versions #f)
-          (hash-ref (hash-ref no-version 'versions) version #f))
+          (hash-has-key? no-version 'versions)
+          (hash? (hash-ref no-version 'versions #f))
+          (hash-has-key? (hash-ref no-version 'versions) version)
+          (hash? (hash-ref (hash-ref no-version 'versions) version #f)))
      =>
      (λ (version-ht)
        (hash-merge version-ht no-version))]
