@@ -67,7 +67,7 @@
 
   (for ([pkg-name (in-list all-pkg-list)])
     (log! "static: building ht for ~v" pkg-name)
-    (define ht (file->value (build-path pkgs-path pkg-name)))
+    (define ht (read-package-info pkg-name))
 
     (define versions-ht
       (hash-set (hash-ref ht 'versions (hash))
@@ -106,6 +106,7 @@
                             (set! these-pkg-list (cons pkg-name these-pkg-list))
                             empty))
                 'tags (hash-ref ht 'tags empty)
+                'author (hash-ref ht 'author "")
                 'authors (author->list (hash-ref ht 'author "")))))
 
   (define (package-info pn)
@@ -183,7 +184,7 @@
          (set! more-set (set-union more-set (list->set conflicts)))
          (let ()
            (package-info-set! pkg
-                              (hash-set (file->value (build-path pkgs-path pkg))
+                              (hash-set (read-package-info pkg)
                                         'conflicts conflicts)))
          (hash-set ht 'conflicts conflicts))))
     (set! more-set (set-subtract more-set changed-pkg-set))
@@ -342,7 +343,10 @@
              (format "http://pkg.racket-lang.org/#[~a]"
                      p))
            (define lu (atom-format-time (hash-ref i 'last-updated)))
-           (define a (first (author->list (hash-ref i 'author))))
+           (define a 
+             (match (author->list (hash-ref i 'author))
+               [(cons a _) a]
+               ['() "nobody"]))
            (match-define (regexp #rx"^([^@]+)" (list _ n)) a)
            `(entry
              (title ([type "html"])

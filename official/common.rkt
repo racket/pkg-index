@@ -40,30 +40,41 @@
 (define (package-list)
   (sort (map path->string (directory-list pkgs-path))
         string-ci<=?))
+
+(define (read-package-info pkg-name)
+  (with-handlers ([exn:fail?
+                   (λ (x)
+                     ((error-display-handler)
+                      (exn-message x)
+                      x)
+                     (hasheq))])
+    (define p
+      (build-path pkgs-path pkg-name))
+    (define v
+      (if (file-exists? p)
+          (file->value p)
+          (hasheq)))
+    (define ht
+      (if (hash? v)
+          v
+          (hasheq)))
+    ht))
+
 (define (package-info pkg-name #:version [version #f])
-  (define p 
-    (build-path pkgs-path pkg-name))
-  (define v
-    (if (file-exists? p)
-        (file->value p)
-        (hasheq)))
-  (define ht
-    (if (hash? v)
-        v
-        (hasheq)))
-  (define no-version 
+  (define ht (read-package-info pkg-name))
+  (define no-version
     (hash-set ht 'name pkg-name))
   (cond
-    [(and version
-          (hash-has-key? no-version 'versions)
-          (hash? (hash-ref no-version 'versions #f))
-          (hash-has-key? (hash-ref no-version 'versions) version)
-          (hash? (hash-ref (hash-ref no-version 'versions) version #f)))
-     =>
-     (λ (version-ht)
-       (hash-merge version-ht no-version))]
-    [else
-     no-version]))
+   [(and version
+         (hash-has-key? no-version 'versions)
+         (hash? (hash-ref no-version 'versions #f))
+         (hash-has-key? (hash-ref no-version 'versions) version)
+         (hash? (hash-ref (hash-ref no-version 'versions) version #f)))
+    =>
+    (λ (version-ht)
+      (hash-merge version-ht no-version))]
+   [else
+    no-version]))
 
 (define (package-ref pkg-info key)
   (hash-ref pkg-info key
@@ -91,7 +102,7 @@
 
 (define (hash-merge from to)
   (for/fold ([to to])
-      ([(k v) (in-hash from)])
+            ([(k v) (in-hash from)])
     (hash-set to k v)))
 
 (define (author->list as)
@@ -108,7 +119,7 @@
 
 (define (log! . args)
   (parameterize ([date-display-format 'iso-8601])
-    (printf "~a: ~a\n" (date->string (current-date) #t) 
+    (printf "~a: ~a\n" (date->string (current-date) #t)
             (apply format args))))
 
 (define (run! f args)
@@ -117,11 +128,11 @@
   (log! "END ~a ~v" f args))
 
 (define (safe-run! run-sema t)
-  (thread 
-   (λ () 
-     (call-with-semaphore run-sema 
-       (λ () 
-         (with-handlers ([exn:fail? (λ (x) ((error-display-handler) 
+  (thread
+   (λ ()
+     (call-with-semaphore run-sema
+       (λ ()
+         (with-handlers ([exn:fail? (λ (x) ((error-display-handler)
                                             (exn-message x)
                                             x))])
            (t)))))))
