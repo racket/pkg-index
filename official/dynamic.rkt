@@ -212,8 +212,9 @@
   (cond
     [(equal? pkg "")
      (cond
-       [(package-exists? mn-name)
-        #f]
+      [(or (package-exists? mn-name)
+           (not (valid-name? mn-name)))
+       #f]
        [else
         (package-info-set! mn-name
                            (hasheq 'name mn-name
