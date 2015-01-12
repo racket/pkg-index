@@ -1,4 +1,7 @@
 #lang racket/base
+
+(provide go)
+
 (require web-server/http
          "common.rkt"
          "update.rkt"
@@ -91,13 +94,15 @@
      (signal-update! (hash-keys pis))
      (response/sexpr #t)]))
 
-(define (redirect-to-static req)
-  (redirect-to
-   (url->string
-    (struct-copy url (request-uri req)
-                 [scheme "http"]
-                 [host "pkgs.racket-lang.org"]
-                 [port 80]))))
+(define redirect-to-static
+  (get-config redirect-to-static-proc
+              (lambda (req)
+                (redirect-to
+                 (url->string
+                  (struct-copy url (request-uri req)
+                               [scheme (get-config redirect-to-static-scheme "http")]
+                               [host (get-config redirect-to-static-host "pkgs.racket-lang.org")]
+                               [port (get-config redirect-to-static-port 80)]))))))
 
 (define-syntax-rule (define-jsonp/auth (f . pat) . body)
   (define-jsonp
@@ -169,7 +174,7 @@
       (λ () (hasheq 'curation (curation-administrator? email)))
       (λ ()
         (send-mail-message
-         "pkg@racket-lang.org"
+         (get-config email-sender-address "pkg@racket-lang.org")
          "Account password reset for Racket Package Catalog"
          (list email)
          empty empty
@@ -185,7 +190,7 @@
       (λ () #t)
       (λ ()
         (send-mail-message
-         "pkg@racket-lang.org"
+         (get-config email-sender-address "pkg@racket-lang.org")
          "Account confirmation for Racket Package Catalog"
          (list email)
          empty empty
@@ -431,7 +436,8 @@
 (define-syntax-rule (forever . body)
   (let loop () (begin . body) (loop)))
 
-(define (go port)
+(define (go)
+  (define port (get-config port 9004))
   (log! "launching on port ~v" port)
   (signal-static! empty)
   (thread
@@ -458,4 +464,4 @@
    #:port port))
 
 (module+ main
-  (go 9004))
+  (go))

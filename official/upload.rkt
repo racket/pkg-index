@@ -3,13 +3,7 @@
          net/url
          racket/port)
 
-(define (upload! the-email the-password the-post)
-  (define the-url
-    (url "https" #f "pkgd.racket-lang.org" #f #t
-         (list (path/param "api" empty)
-               (path/param "upload" empty))
-         empty
-         #f))
+(define (upload! the-email the-password the-url the-post)
   (displayln the-email)
   (displayln the-post)
   (define bs
@@ -29,8 +23,10 @@
 (module+ main
   (require racket/cmdline)
   (command-line #:program "upload"
-                #:args (email password)
-                (if (upload! email password
+                #:args (email password [urlstr "https://pkgd.racket-lang.org/api/upload"])
+                (if (upload! email
+                             password
+                             (string->url urlstr)
                              (read (current-input-port)))
                   (exit 0)
                   (exit 1))))
