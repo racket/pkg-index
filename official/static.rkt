@@ -390,7 +390,8 @@
             ((response-output (main-dispatch (url->request url)))
              (current-output-port)))))
     (unless (and (file-exists? p)
-                 (bytes=? bs (file->bytes p)))
+                 (bytes=? bs (file->bytes p))
+                 (file-exists? (path-add-suffix p #".json")))
       (log! "static: caching ~v" p)
       (with-output-to-file p
         #:exists 'replace
