@@ -19,9 +19,6 @@
 
 (define-runtime-path root "root")
 (make-directory* root)
-(define secret-key
-  (make-secret-salt/file
-   (build-path root "secret.key")))
 (define users.new-path (build-path root "users.new"))
 (make-directory* users.new-path)
 
