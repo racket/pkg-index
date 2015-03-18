@@ -2,6 +2,7 @@
 (require racket/list
          racket/function
          pkg/util
+         racket/system
          racket/package
          (prefix-in pkg: pkg/lib)
          "common.rkt"
@@ -117,14 +118,21 @@
       (update-pkgs pkgs)]))
   (log! "update: changes ~v" changed)
   (signal-static! changed))
-(define (run-update! pkgs)
-  (run! do-update! pkgs))
+(define (run-update! pkgs beat?)
+  (run! do-update! pkgs)
+  (when beat?
+    (system* (path->string (build-path src "beat-update.sh")))))
 (define run-sema (make-semaphore 1))
+(define (signal-update!* pkgs beat?)
+  (safe-run! run-sema (λ () (run-update! pkgs beat?))))
 (define (signal-update! pkgs)
-  (safe-run! run-sema (λ () (run-update! pkgs))))
+  (signal-update!* pkgs #f))
+(define (signal-update!/beat pkgs)
+  (signal-update!* pkgs #t))
 
 (provide do-update!
-         signal-update!)
+         signal-update!
+         signal-update!/beat)
 
 (module+ main
   (require racket/cmdline)

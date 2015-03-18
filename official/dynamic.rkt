@@ -444,7 +444,7 @@
       (log! "update-t: Running scheduled build update.")
       (signal-build-update!)
       (log! "update-t: Running scheduled update.")
-      (signal-update! empty)
+      (signal-update!/beat empty)
       (log! "update-t: sleeping for 1 hour")
       (sleep (* 1 60 60)))))
   (serve/servlet
