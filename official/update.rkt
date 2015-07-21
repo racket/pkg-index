@@ -36,9 +36,17 @@
             (package-info-set!
              pkg-name
              (hash-set i 'checksum-error
-                       (regexp-replace* (regexp (github-client_secret))
-                                        (exn-message x)
-                                        "REDACTED"))))
+                       (regexp-replace*
+                        (regexp (github-client_secret))
+
+                        (let ([the-string-port (open-output-string)])
+                          (parameterize ([current-error-port the-string-port])
+                            ((error-display-handler)
+                             (exn-message x)
+                             x))
+                          (get-output-string the-string-port))
+                        
+                        "REDACTED"))))
           #t)])
     (define i (package-info pkg-name))
     (define old-checksum (package-ref i 'checksum))

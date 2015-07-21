@@ -108,7 +108,7 @@ $( document ).ready(function() {
 
         $( "#pi_checksum" ).html("").text( pkgi['versions']['default']['checksum'] );
         if ( pkgi['checksum-error'] ) {
-            $( "#pi_checksum" ).append( [ "Error:", $("<pre>").text(pkgi['checksum-error']) ] ); }
+            $( "#pi_checksum" ).append( [ $("<p>").html("").append( $("<strong>").text("Update Error:") , $("<pre>").text(pkgi['checksum-error']) ) ] ); }
 
         $( "#pi_last_updated" ).text( format_time(pkgi['last-updated']) );
         $( "#pi_last_checked" ).text( format_time(pkgi['last-checked']) );
