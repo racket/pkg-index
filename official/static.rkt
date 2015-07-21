@@ -255,8 +255,9 @@
         'versions
         (for/hash ([(v vht) (in-hash (hash-ref ht 'versions))])
           (values v
-                  (hash-set vht 'source_url
-                            (package-url->useful-url (hash-ref vht 'source)))))
+                  (with-handlers ([exn:fail? (λ (x) vht)])
+                    (hash-set vht 'source_url
+                              (package-url->useful-url (hash-ref vht 'source))))))
         'search-terms
         (let* ([st (hasheq)]
                [st (for/fold ([st st])
