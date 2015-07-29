@@ -47,7 +47,10 @@
    (hasheq 'source "http://github" 'descript "DrRacket")))
 
 (define (curation-administrator? u)
-  (member u '("jay.mccarthy@gmail.com" "mflatt@cs.utah.edu" "samth@ccs.neu.edu")))
+  (member u '("jay.mccarthy@gmail.com"
+              "mflatt@cs.utah.edu"
+              "samth@ccs.neu.edu"
+              "stamourv@racket-lang.org")))
 
 (define (api/upload req)
   (define req-data (read (open-input-bytes (or (request-post-data/raw req) #""))))
