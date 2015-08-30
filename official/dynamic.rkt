@@ -57,9 +57,14 @@
   (match-define (list email given-password pis) req-data)
   (define password-path (build-path users.new-path email))
   (define expected-password (file->bytes password-path))
+  (define password-okay? (bcrypt-check expected-password given-password))
+  (define curator? (curation-administrator? email))
   (cond
-    [(not (and (bcrypt-check expected-password given-password)
-               (curation-administrator? email)))
+    [(not (and password-okay? curator?))
+     (log! "api/upload! failed pass(~a) curator(~a) email was ~v"
+           password-okay?
+           curator?
+           email)
      (response/sexpr #f)]
     [else
      (log! "receiving api/upload!")
