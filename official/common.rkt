@@ -19,8 +19,6 @@
 (define secret-key
   (make-secret-salt/file
    (build-path root "secret.key")))
-(define users-path (build-path root "users"))
-(make-directory* users-path)
 (define users.new-path (build-path root "users.new"))
 (make-directory* users.new-path)
 
