@@ -22,10 +22,10 @@
   (require rackunit))
 
 (define (package-remove! pkg-name)
-  (delete-file (build-path pkgs-path pkg-name)))
+  (delete-file (build-path^ pkgs-path pkg-name)))
 
 (define (package-exists? pkg-name)
-  (file-exists? (build-path pkgs-path pkg-name)))
+  (file-exists? (build-path^ pkgs-path pkg-name)))
 
 (define (hash-deep-merge ht more-ht)
   (for/fold ([ht ht])
@@ -55,7 +55,7 @@
 (define (api/upload req)
   (define req-data (read (open-input-bytes (or (request-post-data/raw req) #""))))
   (match-define (list email given-password pis) req-data)
-  (define password-path (build-path users.new-path email))
+  (define password-path (build-path^ users.new-path email))
   (define expected-password (file->bytes password-path))
   (define password-okay? (bcrypt-check expected-password given-password))
   (define curator? (curation-administrator? email))
@@ -112,8 +112,8 @@
 
 (define current-user (make-parameter #f))
 (define (ensure-authenticate email passwd body-fun)
-  (define passwd-path (build-path users.new-path email))
-  (define old-passwd-path (build-path users-path email))
+  (define passwd-path (build-path^ users.new-path email))
+  (define old-passwd-path (build-path^ users-path email))
 
   (define (authenticated!)
     (parameterize ([current-user email])
@@ -146,7 +146,7 @@
    ['passwd passwd]
    ['code email-code])
 
-  (define passwd-path (build-path users.new-path email))
+  (define passwd-path (build-path^ users.new-path email))
   (define (generate-a-code email)
     (define correct-email-code
       (number->string (random (expt 10 8))))

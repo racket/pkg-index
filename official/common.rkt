@@ -9,6 +9,9 @@
          racket/string
          web-server/http/id-cookie)
 
+(define (build-path^ base file)
+  (build-path base (path-element->string (string->path-element file))))
+
 (define-runtime-path src ".")
 
 (define-runtime-path root "root")
@@ -49,7 +52,7 @@
                       x)
                      (hasheq))])
     (define p
-      (build-path pkgs-path pkg-name))
+      (build-path^ pkgs-path pkg-name))
     (define v
       (if (file-exists? p)
           (file->value p)
@@ -97,7 +100,7 @@
                  -inf.0]))))
 
 (define (package-info-set! pkg-name i)
-  (write-to-file i (build-path pkgs-path pkg-name)
+  (write-to-file i (build-path^ pkgs-path pkg-name)
                  #:exists 'replace))
 
 (define (hash-merge from to)
