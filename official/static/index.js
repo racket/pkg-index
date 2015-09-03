@@ -16,11 +16,11 @@ $( document ).ready(function() {
     
     function jslink ( texts, clickf) {
         return $('<a>', { href: "javascript:void(0)",
-                          click: clickf } ).html(texts); }
+                          click: clickf } ).text(texts); }
     function jslinki ( texts, clickf) {
         var i = $('<a>', { href: "javascript:void(0)",
                            click: function () { clickf(i); } } );
-        return i.html(texts); }
+        return i.text(texts); }
 
     function dynamic_send ( u, o ) {
         o['email'] = localStorage['email'];
@@ -118,25 +118,25 @@ $( document ).ready(function() {
         $('#pi_docs').html("").append( $.map( pkgi['build']['docs'], function ( doc, i ) {
             var dl;
             if ( doc[2] ) {
-                dl = $('<a>', { href: build_host + doc[2] } ).html(doc[1]); }
+                dl = $('<a>', { href: build_host + doc[2] } ).text(doc[1]); }
             else {
-                dl = $('<del>').html(doc[1]); }
+                dl = $('<del>').text(doc[1]); }
             return $('<span>').append(dl, " ") } ) );
 
         if ( pkgi['build'] && pkgi['build']['failure-log'] ) {
                 $('#pi_build').html("")
                 .append($('<span>')
-                        .append($('<a>', { href: build_host + pkgi['build']['failure-log'] }).html( "fails" )));
+                        .append($('<a>', { href: build_host + pkgi['build']['failure-log'] }).text( "fails" )));
         } else if ( pkgi['build']['success-log'] && pkgi['build']['dep-failure-log'] ) {
             $('#pi_build').html("")   
                 .append($('<span>')
-                        .append($('<a>', { href: build_host + pkgi['build']['success-log'] }).html( "succeeds" ))
+                        .append($('<a>', { href: build_host + pkgi['build']['success-log'] }).text( "succeeds" ))
                         .append(" with ")
-                        .append($('<a>', { href: build_host + pkgi['build']['dep-failure-log'] }).html( "dependency problems" )));
+                        .append($('<a>', { href: build_host + pkgi['build']['dep-failure-log'] }).text( "dependency problems" )));
         } else if ( pkgi['build']['success-log'] ) {
             $('#pi_build').html("")
                 .append($('<span>')
-                        .append($('<a>', { href: build_host + pkgi['build']['success-log'] }).html( "succeeds" )));
+                        .append($('<a>', { href: build_host + pkgi['build']['success-log'] }).text( "succeeds" )));
         }
 
         $( "#pi_description" ).text( pkgi['description'] );
@@ -163,7 +163,7 @@ $( document ).ready(function() {
                                            $('<td>').html( $('<a>', { text: vo['source'],
                                                                       href: vo['source_url']  } ) ) ),
                          $('<tr>').append( $('<td>').html(""),
-                                           $('<td>').html(vo['checksum']) ),
+                                           $('<td>').text(vo['checksum']) ),
                          " "]; } } ) );
         if ( mypkg_p ) {
             $( "#pi_add_version_row" ).show(); }
@@ -471,17 +471,17 @@ $( document ).ready(function() {
         if ( value['build'] && value['build']['failure-log'] ) {
             bstatus = $('<td>', {class: 'build_red'})
                 .append($('<span>')
-                       .append($('<a>', { href: build_host + value['build']['failure-log'] }).html( "fails" )));
+                       .append($('<a>', { href: build_host + value['build']['failure-log'] }).text( "fails" )));
         } else if ( value['build'] && value['build']['success-log'] && value['build']['dep-failure-log'] ) {
             bstatus = $('<td>', {class: 'build_yellow'})
                 .append($('<span>')
-                        .append($('<a>', { href: build_host + value['build']['success-log'] }).html( "succeeds" ))
+                        .append($('<a>', { href: build_host + value['build']['success-log'] }).text( "succeeds" ))
                         .append(" with ")
-                        .append($('<a>', { href: build_host + value['build']['dep-failure-log'] }).html( "dependency problems" )));
+                        .append($('<a>', { href: build_host + value['build']['dep-failure-log'] }).text( "dependency problems" )));
         } else if ( value['build'] && value['build']['success-log'] ) {
             bstatus = $('<td>', {class: 'build_green'})
                 .append($('<span>')
-                        .append($('<a>', { href: build_host + value['build']['success-log'] }).html( "succeeds" )));
+                        .append($('<a>', { href: build_host + value['build']['success-log'] }).text( "succeeds" )));
         } else {
             bstatus = $('<td>').html("");
         }
@@ -500,21 +500,21 @@ $( document ).ready(function() {
                     .append($('<span>').attr("class","authors").html("").append( $.map( value['authors'], function ( author, i ) {
                         return addfilterlink ( author, "author:" + author, "possible" ); } ) )),
                 $('<td>').text( value['description'] )
-                    .append($('<span>').attr("class","doctags").html(value['build']['docs'].length > 0 ? "Docs: " : "")
+                    .append($('<span>').attr("class","doctags").text(value['build']['docs'].length > 0 ? "Docs: " : "")
                             .append( $.map( value['build']['docs'], function ( doc, i ) {
                                 var dl;
                                 if ( doc[2] ) {
-                                    dl = $('<a>', { href: build_host + doc[2] } ).html(doc[1]); }
+                                    dl = $('<a>', { href: build_host + doc[2] } ).text(doc[1]); }
                                 else {
-                                    dl = $('<del>').html(doc[1]); }
+                                    dl = $('<del>').text(doc[1]); }
                                 return $('<span>').append(dl, " ") } ) ))
-                    .append($('<span>').attr("class","doctags").html(value['tags'].length > 0 ? "Tags: " : "").append( $.map( value['tags'], function ( tag, i ) {
+                    .append($('<span>').attr("class","doctags").text(value['tags'].length > 0 ? "Tags: " : "").append( $.map( value['tags'], function ( tag, i ) {
                         return addfilterlink ( tag, tag, "possible" ); } ) )),
                 bstatus ); }
 
     function pollNotice(){
         $.getJSON( dynamic_url("/jsonp/notice"), function( resp ) {
-            $("#server_notice").html(resp);
+            $("#server_notice").text(resp);
             // If there is no notice, update every 5 minutes
             if ( ! (/\S/.test(resp)) ) {
                 $("#server_notice").hide();
@@ -563,7 +563,7 @@ $( document ).ready(function() {
         var c = $( "#login_code_text" ).val();
 
         if ( c && p != cp ) {
-            $( "#login_error" ).html( "You did not type in the same password." ); }
+            $( "#login_error" ).text( "You did not type in the same password." ); }
         else {
             $.getJSON( dynamic_url("/jsonp/authenticate"),
                        { email: e, passwd: p, code: c },
@@ -572,10 +572,10 @@ $( document ).ready(function() {
                                $( "#login_confirm_row" ).show();
                                $( "#login_code_row" ).show();
 
-                               $( "#login_error" ).html( "Check your email for an email code." ); }
+                               $( "#login_error" ).text( "Check your email for an email code." ); }
                            else if ( resp == "wrong-code" ) {
                                $( "#login_code_text" ).val("");
-                               $( "#login_error" ).html( "That is not the correct code." ); }
+                               $( "#login_error" ).text( "That is not the correct code." ); }
                            else if ( resp ) {
                                $( "#login_email_text" ).val("");
                                $( "#login_passwd_text" ).val("");
@@ -595,7 +595,7 @@ $( document ).ready(function() {
                                $( "#login_confirm_row" ).show();
                                $( "#login_code_row" ).show();
 
-                               $( "#login_error" ).html( "Incorrect password, please retry or check your email for a change password code." ); }; } ); } }
+                               $( "#login_error" ).text( "Incorrect password, please retry or check your email for a change password code." ); }; } ); } }
     $( "#login_passwd_text" ).keypress( function (e) {
         if (e.which == 13) { login_submit (); } } );
     $( "#login_code_text" ).keypress( function (e) {
@@ -611,7 +611,7 @@ $( document ).ready(function() {
         $("#logout").html( jslink( "login", function () { $( "#login" ).dialog( "open" ); } ) ); }
     function menu_logging () {
         logged_in = false;
-        $("#logout").html( "logging in..." ); }
+        $("#logout").text( "logging in..." ); }
     function menu_loggedin ( curate_p ) {
         logged_in = true;
         $("#logout").html("")
