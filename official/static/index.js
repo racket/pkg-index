@@ -144,10 +144,10 @@ $( document ).ready(function() {
 
         ($( "#pi_tags" ).html("").append( $.map( pkgi['tags'], function ( tag, i ) {
             if ( mypkg_p ) {
-                return [ tag, jslink( "[x]", function () { submit_remove_tag(tag); }),
+                return [ spanText(tag), jslink( "[x]", function () { submit_remove_tag(tag); }),
                          " "]; }
             else {
-                return [tag, " "]; } } ) ));
+                return [ spanText(tag), " "]; } } ) ));
         if ( logged_in ) {
             $( "#pi_add_tag_row" ).show(); }
         else {
@@ -158,8 +158,8 @@ $( document ).ready(function() {
             if ( v == 'default' ) {
                 return []; }
             else {
-                return [ $('<tr>').append( $('<td>').html("").append(
-                    v, (mypkg_p ? ["&nbsp;", jslink( "[x]", function () { submit_remove_version(v); }) ] : "") ),
+                return [ $('<tr>').append( $('<td>').html("").text(v).append(
+                    "", (mypkg_p ? ["&nbsp;", jslink( "[x]", function () { submit_remove_version(v); }) ] : "") ),
                                            $('<td>').html( $('<a>', { text: vo['source'],
                                                                       href: vo['source_url']  } ) ) ),
                          $('<tr>').append( $('<td>').html(""),
@@ -410,7 +410,7 @@ $( document ).ready(function() {
                     new_h = new_h + "(" + "!" + term + ")";
                     return removefilterlink ( term, "!" + term, "inactive" ); } }
             else if ( shown_terms[term] == 0 ) {
-                return [ term, " " ]; }
+                return [ spanText(term), " " ]; }
             else {
                 return addfilterlink ( term, term, "possible" ); } } ) )
             .append( resetfilterlink() );
@@ -449,7 +449,7 @@ $( document ).ready(function() {
     function update_curate_span (curate_span, value) {
         curate_span.html("").
             append(curate_link ( curate_span, true, value ),
-                   value['ring'],
+                   spanText(value['ring']),
                    curate_link ( curate_span, false, value ),
                    "&nbsp;"); }
 
