@@ -113,24 +113,12 @@
 (define current-user (make-parameter #f))
 (define (ensure-authenticate email passwd body-fun)
   (define passwd-path (build-path^ users.new-path email))
-  (define old-passwd-path (build-path^ users-path email))
 
   (define (authenticated!)
     (parameterize ([current-user email])
       (body-fun)))
 
   (cond
-    [(and (not (file-exists? passwd-path))
-          (file-exists? old-passwd-path))
-     (cond
-       [(not (bytes=? (file->bytes old-passwd-path)
-                      (string->bytes/utf-8 (salty passwd))))
-        "failed"]
-       [else
-        (display-to-file (bcrypt-encode (string->bytes/utf-8 passwd))
-                         passwd-path)
-        (delete-file old-passwd-path)
-        (authenticated!)])]
     [(not (file-exists? passwd-path))
      "new-user"]
     [(not (bcrypt-check (file->bytes passwd-path)
