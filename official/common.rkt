@@ -9,6 +9,9 @@
          racket/string
          web-server/http/id-cookie)
 
+;; This f o f^-1 is applied because it throws an error if file is not
+;; a single path element. This causes things like "../../etc/passwd"
+;; to throw errors and thus be protected.
 (define (build-path^ base file)
   (build-path base (path-element->string (string->path-element file))))
 
