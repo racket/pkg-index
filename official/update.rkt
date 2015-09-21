@@ -1,9 +1,9 @@
 #lang racket/base
 (require racket/list
          racket/function
-         pkg/util
          racket/system
          racket/package
+         pkg/private/stage
          (prefix-in pkg: pkg/lib)
          "common.rkt"
          "notify.rkt"

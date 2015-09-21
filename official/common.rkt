@@ -1,13 +1,13 @@
 #lang racket/base
 (require racket/file
          racket/runtime-path
-         pkg/util
          racket/match
          racket/list
          racket/date
          racket/system
          racket/string
-         web-server/http/id-cookie)
+         web-server/http/id-cookie
+         pkg/private/stage)
 
 ;; This f o f^-1 is applied because it throws an error if file is not
 ;; a single path element. This causes things like "../../etc/passwd"

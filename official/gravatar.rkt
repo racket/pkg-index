@@ -5,8 +5,7 @@
          xml/path
          racket/port
          net/url
-         file/md5
-         pkg/util)
+         file/md5)
 
 (define (gravatar-hash email)
   (bytes->string/utf-8
