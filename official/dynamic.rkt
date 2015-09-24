@@ -20,7 +20,9 @@
          "../basic/main.rkt"
          file/sha1
          (prefix-in bcrypt- bcrypt)
-         version/utils)
+         version/utils
+         racket/set
+         json)
 (module+ test
   (require rackunit))
 
@@ -210,44 +212,106 @@
    ['name mn-name]
    ['description mn-desc]
    ['source mn-source])
+  (save-package! #:old-name pkg
+                 #:new-name mn-name
+                 #:description mn-desc
+                 #:source mn-source
+                 #:tags #f
+                 #:authors #f
+                 #:versions #f))
+
+(define (jsonp/package/modify-all req)
+  (define-jsonp/auth
+    (inner//jsonp/package/modify-all)
+    (define req-data (read-json (open-input-bytes (or (request-post-data/raw req) #""))))
+    (and (hash? req-data)
+         (let ((pkg (hash-ref req-data 'pkg #f))
+               (name (hash-ref req-data 'name #f))
+               (description (hash-ref req-data 'description #f))
+               (source (hash-ref req-data 'source #f))
+               (tags (hash-ref req-data 'tags #f))
+               (authors (hash-ref req-data 'authors #f))
+               (versions (hash-ref req-data 'versions #f)))
+           (and (string? pkg)
+                (string? name)
+                (string? description)
+                (string? source)
+                (or (not tags) (and (list? tags) (andmap valid-tag? tags)))
+                (or (not authors) (and (list? authors) (andmap valid-author? authors)))
+                (or (not versions) (and (list? versions) (andmap valid-versions-list-entry? versions)))
+                (save-package! #:old-name pkg
+                               #:new-name name
+                               #:description description
+                               #:source source
+                               #:tags tags
+                               #:authors authors
+                               #:versions versions)))))
+  (inner//jsonp/package/modify-all req))
+
+(define (valid-versions-list-entry? entry)
+  (and (pair? entry)
+       (pair? (cdr entry))
+       (null? (cddr entry))
+       (valid-version? (car entry))
+       (string? (cadr entry))))
+
+;; Call ONLY within scope of an ensure-authenticate!
+(define (save-package! #:old-name old-name
+                       #:new-name new-name
+                       #:description description
+                       #:source source
+                       #:tags tags0
+                       #:authors authors0
+                       #:versions versions0)
+  (when (not (current-user)) (error 'save-package! "No current-user"))
+  (define new-package? (equal? old-name ""))
+  (define (do-save! base-hash)
+    (let* ((h base-hash)
+           (h (cond [authors0
+                     (hash-set h
+                               'author
+                               (string-join
+                                (set->list (set-add (list->set authors0) (current-user)))))]
+                    [new-package?
+                     (hash-set h 'author (current-user))]
+                    [else
+                     h]))
+           (h (if tags0 (hash-set h 'tags (tags-normalize tags0)) h))
+           (h (if versions0
+                  (hash-set h 'versions (for/hash [(v versions0)] (values (car v) (cadr v))))
+                  h))
+           (h (hash-set h 'name new-name))
+           (h (hash-set h 'source source))
+           (h (hash-set h 'description description))
+           (h (hash-set h 'last-edit (current-seconds))))
+      (package-info-set! new-name h)))
   (cond
-    [(equal? pkg "")
+    [(not (andmap valid-author? (or authors0 '()))) #f]
+    [(not (andmap valid-tag? (or tags0 '()))) #f]
+    [(not (andmap valid-versions-list-entry? (or versions0 '()))) #f]
+    [new-package?
      (cond
-      [(or (package-exists? mn-name)
-           (not (valid-name? mn-name)))
+      [(or (package-exists? new-name)
+           (not (valid-name? new-name)))
        #f]
-       [else
-        (package-info-set! mn-name
-                           (hasheq 'name mn-name
-                                   'source mn-source
-                                   'author (current-user)
-                                   'description mn-desc
-                                   'last-edit (current-seconds)))
-        (signal-update! (list mn-name))
-        #t])]
+      [else
+       (do-save! (hasheq))
+       (signal-update! (list new-name))
+       #t])]
     [else
      (ensure-package-author
-      pkg
+      old-name
       (λ ()
         (cond
-          [(equal? mn-name pkg)
-           (package-info-set! pkg
-                              (hash-set* (package-info pkg)
-                                         'source mn-source
-                                         'description mn-desc
-                                         'last-edit (current-seconds)))
-           (signal-update! (list pkg))
+          [(equal? new-name old-name)
+           (do-save! (package-info old-name))
+           (signal-update! (list new-name))
            #t]
-          [(and (valid-name? mn-name)
-                (not (package-exists? mn-name)))
-           (package-info-set! mn-name
-                              (hash-set* (package-info pkg)
-                                         'name mn-name
-                                         'source mn-source
-                                         'description mn-desc
-                                         'last-edit (current-seconds)))
-           (package-remove! pkg)
-           (signal-update! (list mn-name))
+          [(and (valid-name? new-name)
+                (not (package-exists? new-name)))
+           (do-save! (package-info old-name))
+           (package-remove! old-name)
+           (signal-update! (list new-name))
            #t]
           [else
            #f])))]))
@@ -422,6 +486,7 @@
    [("jsonp" "update") jsonp/update]
    [("jsonp" "package" "del") jsonp/package/del]
    [("jsonp" "package" "modify") jsonp/package/modify]
+   [("jsonp" "package" "modify-all") #:method "post" jsonp/package/modify-all]
    [("jsonp" "package" "version" "add") jsonp/package/version/add]
    [("jsonp" "package" "version" "del") jsonp/package/version/del]
    [("jsonp" "package" "tag" "add") jsonp/package/tag/add]
