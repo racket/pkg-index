@@ -21,14 +21,8 @@ Common configuration keys:
  - `root` - path; defaults to this package's `official/root`
    directory. Used as a base for many other configuration variables:
 
-    - `users-path` - path; defaults to *root*`/users`. Directory in
-      which to hold *old-style* user records. The server does not
-      generate such records anymore; the records are used only to
-      migrate users to new-style records.
-
     - `users.new-path` - path; defaults to *root*`/users.new`.
-      Directory in which to hold *current* (i.e. new-style) user
-      records, one file per user.
+      Directory in which to hold user records, one file per user.
 
     - `github-client_id` - string; defaults to the contents of the
       file at *root*`/client_id`. Should be a Github client ID string
