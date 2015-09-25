@@ -134,7 +134,12 @@
     [else
      (authenticated!)]))
 
+;; email-codes: (Hashtable String String)
+;; Key: email address.
+;; Value: code sent out in email and required for registration of a new password.
 (define email-codes (make-hash))
+;; TODO: Expire codes.
+
 (define-jsonp
   (jsonp/authenticate
    ['email email]
@@ -142,20 +147,25 @@
    ['code email-code])
 
   (define passwd-path (build-path^ users.new-path email))
+
   (define (generate-a-code email)
     (define correct-email-code
-      (number->string (random (expt 10 8))))
-
+      (bytes->hex-string (with-input-from-file "/dev/urandom" (lambda () (read-bytes 12)))))
     (hash-set! email-codes email correct-email-code)
-
     correct-email-code)
+
+  (define (codes-equal? a b)
+    ;; Compare case-insensitively since people are weird and might
+    ;; type the thing in.
+    (string-ci=? a b))
+
   (define (check-code-or true false)
     (cond
       [(and (not (string=? "" email-code))
             (hash-ref email-codes email #f))
        => (λ (correct-email-code)
             (cond
-              [(equal? correct-email-code email-code)
+              [(codes-equal? correct-email-code email-code)
                (display-to-file (bcrypt-encode (string->bytes/utf-8 passwd))
                                 passwd-path
                                 #:exists 'replace)
