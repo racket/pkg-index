@@ -9,7 +9,7 @@
             (lambda (req)
               (log-info "Would redirect to static version of ~a"
                         (url->string (request-uri req)))
-              (redirect-to (string->url "http://localhost/~tonyg/pkg-catalog-static/FIXME")))
+              (redirect-to "http://localhost/~tonyg/pkg-catalog-static/FIXME"))
             'email-sender-address "tonyg@racket-lang.org"
             'port 8445
             'atom-package-url-format-string
