@@ -403,16 +403,19 @@
   (jsonp/package/tag/add
    ['pkg pkg]
    ['tag tag])
-  (cond
-    [(valid-tag? tag)
-     (define i (package-info pkg))
-     (package-info-set!
-      pkg
-      (hash-set i 'tags (tags-normalize (cons tag (package-ref i 'tags)))))
-     (signal-static! (list pkg))
-     #t]
-    [else
-     #f]))
+  (ensure-package-author
+   pkg
+   (lambda ()
+     (cond
+       [(valid-tag? tag)
+        (define i (package-info pkg))
+        (package-info-set!
+         pkg
+         (hash-set i 'tags (tags-normalize (cons tag (package-ref i 'tags)))))
+        (signal-static! (list pkg))
+        #t]
+       [else
+        #f]))))
 
 (define-jsonp/auth
   (jsonp/package/tag/del
