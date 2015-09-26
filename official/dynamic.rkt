@@ -2,27 +2,29 @@
 
 (provide go)
 
-(require web-server/http
+(require file/sha1
+         json
+         net/sendmail
+         net/url
+         racket/file
+         racket/list
+         racket/match
+         racket/set
+         racket/string
+         version/utils
+         web-server/dispatch
+         web-server/http
+         web-server/http/basic-auth
+         web-server/servlet-env
+         (prefix-in bcrypt- bcrypt)
+         "../basic/main.rkt"
+         "build-update.rkt"
          "common.rkt"
-         "update.rkt"
+         "jsonp.rkt"
          "notify.rkt"
          "static.rkt"
-         "build-update.rkt"
-         "jsonp.rkt"
-         web-server/servlet-env
-         racket/file
-         web-server/dispatch
-         racket/match
-         racket/string
-         net/url
-         racket/list
-         net/sendmail
-         "../basic/main.rkt"
-         file/sha1
-         (prefix-in bcrypt- bcrypt)
-         version/utils
-         racket/set
-         json)
+         "update.rkt")
+
 (module+ test
   (require rackunit))
 
@@ -107,32 +109,34 @@
                                [port (get-config redirect-to-static-port 80)]))))))
 
 (define-syntax-rule (define-jsonp/auth (f . pat) . body)
-  (define-jsonp
-    (f
-     ['email email]
-     ['passwd passwd]
-     . pat)
-    (ensure-authenticate email passwd (λ () . body))))
+  (define (f req)
+    (define-jsonp (f . pat) (ensure-authenticate req (λ () . body)))
+    (f req)))
 
 (define (salty str)
   (sha1 (open-input-string str)))
 
 (define current-user (make-parameter #f))
-(define (ensure-authenticate email passwd body-fun)
+(define (ensure-authenticate req body-fun)
+  (match (request->basic-credentials req)
+    [(cons email passwd)
+     (ensure-authenticate/email+passwd (bytes->string/utf-8 email)
+                                       (bytes->string/utf-8 passwd)
+                                       body-fun)]
+    [_
+     ;; TODO: things are structured awkwardly at the moment, but it'd
+     ;; be nice to have this generate 401 Authentication Required with
+     ;; a use of `make-basic-auth-header` to request credentials.
+     "authentication-required"]))
+
+(define (ensure-authenticate/email+passwd email passwd body-fun)
   (define passwd-path (build-path^ users.new-path email))
-
-  (define (authenticated!)
-    (parameterize ([current-user email])
-      (body-fun)))
-
-  (cond
-    [(not (file-exists? passwd-path))
-     "new-user"]
-    [(not (bcrypt-check (file->bytes passwd-path)
-                        (string->bytes/utf-8 passwd)))
-     "failed"]
-    [else
-     (authenticated!)]))
+  (cond [(not (file-exists? passwd-path))
+         "new-user"]
+        [(not (bcrypt-check (file->bytes passwd-path) (string->bytes/utf-8 passwd)))
+         "failed"]
+        [else
+         (parameterize ([current-user email]) (body-fun))]))
 
 ;; email-codes: (Hashtable String String)
 ;; Key: email address.
@@ -140,81 +144,104 @@
 (define email-codes (make-hash))
 ;; TODO: Expire codes.
 
-(define-jsonp
-  (jsonp/authenticate
-   ['email email]
-   ['passwd passwd]
-   ['code email-code])
+(define (generate-a-code! email)
+  (define correct-email-code
+    (bytes->hex-string
+     (with-input-from-file "/dev/urandom" (lambda () (read-bytes 12)))))
+  (hash-set! email-codes email correct-email-code)
+  correct-email-code)
 
-  (define passwd-path (build-path^ users.new-path email))
+(define (codes-equal? a b)
+  ;; Compare case-insensitively since people are weird and might
+  ;; type the thing in.
+  (string-ci=? a b))
 
-  (define (generate-a-code email)
-    (define correct-email-code
-      (bytes->hex-string (with-input-from-file "/dev/urandom" (lambda () (read-bytes 12)))))
-    (hash-set! email-codes email correct-email-code)
-    correct-email-code)
+(define (check-code-or email passwd email-code k-true k-false)
+  (cond [(and (not (string=? "" email-code))
+              (hash-ref email-codes email #f))
+         => (λ (correct-email-code)
+              (cond
+                [(codes-equal? correct-email-code email-code)
+                 (define passwd-path (build-path^ users.new-path email))
+                 (display-to-file (bcrypt-encode (string->bytes/utf-8 passwd))
+                                  passwd-path
+                                  #:exists 'replace)
+                 (hash-remove! email-codes email)
+                 (k-true)]
+                [else
+                 "wrong-code"]))]
+        [else
+         (k-false)
+         #f]))
 
-  (define (codes-equal? a b)
-    ;; Compare case-insensitively since people are weird and might
-    ;; type the thing in.
-    (string-ci=? a b))
+(define (send-password-reset-email! email)
+  (send-mail-message
+   (get-config email-sender-address "pkg@racket-lang.org")
+   "Account password reset for Racket Package Catalog"
+   (list email)
+   empty empty
+   (list
+    "Someone tried to login with your email address for an account on the Racket Package Catalog, but failed."
+    "If you this was you, please use this code to reset your password:"
+    ""
+    (generate-a-code! email)
+    ""
+    "This code will expire, so if it is not available, you'll have to try to again.")))
 
-  (define (check-code-or true false)
-    (cond
-      [(and (not (string=? "" email-code))
-            (hash-ref email-codes email #f))
-       => (λ (correct-email-code)
-            (cond
-              [(codes-equal? correct-email-code email-code)
-               (display-to-file (bcrypt-encode (string->bytes/utf-8 passwd))
-                                passwd-path
-                                #:exists 'replace)
+(define (send-account-registration-email! email)
+  (send-mail-message
+   (get-config email-sender-address "pkg@racket-lang.org")
+   "Account confirmation for Racket Package Catalog"
+   (list email)
+   empty empty
+   (list
+    "Someone tried to register your email address for an account on the Racket Package Catalog."
+    "If you want to proceed, use this code:"
+    ""
+    (generate-a-code! email)
+    ""
+    "This code will expire, so if it is not available, you'll have to try to register again.")))
 
-               (hash-remove! email-codes email)
+(define *cors-headers*
+  (list (header #"Access-Control-Allow-Origin" #"*")
+        (header #"Access-Control-Allow-Methods" #"POST, OPTIONS")
+        (header #"Access-Control-Allow-Headers" #"content-type")))
 
-               (true)]
-              [else
-               "wrong-code"]))]
-      [else
-       (false)
+(define (response/json o)
+  (response/output
+   (lambda (p)
+     (write-json o p))
+   #:headers *cors-headers*
+   #:mime-type #"application/json"))
 
-       #f]))
+(define (api/authenticate/options req)
+  ;; This is gross. OPTIONS handling should be able to be made global.
+  (response/output
+   (lambda (p) (void))
+   #:headers *cors-headers*))
 
-  (match (ensure-authenticate email passwd (λ () #t))
-    ["failed"
-     (check-code-or
-      (λ () (hasheq 'curation (curation-administrator? email)))
-      (λ ()
-        (send-mail-message
-         (get-config email-sender-address "pkg@racket-lang.org")
-         "Account password reset for Racket Package Catalog"
-         (list email)
-         empty empty
-         (list
-          "Someone tried to login with your email address for an account on the Racket Package Catalog, but failed."
-          "If you this was you, please use this code to reset your password:"
-          ""
-          (generate-a-code email)
-          ""
-          "This code will expire, so if it is not available, you'll have to try to again."))))]
-    ["new-user"
-     (check-code-or
-      (λ () #t)
-      (λ ()
-        (send-mail-message
-         (get-config email-sender-address "pkg@racket-lang.org")
-         "Account confirmation for Racket Package Catalog"
-         (list email)
-         empty empty
-         (list
-          "Someone tried to register your email address for an account on the Racket Package Catalog."
-          "If you want to proceed, use this code:"
-          ""
-          (generate-a-code email)
-          ""
-          "This code will expire, so if it is not available, you'll have to try to register again."))))]
-    [#t
-     (hasheq 'curation (curation-administrator? email))]))
+(define (api/authenticate req)
+  (define raw (request-post-data/raw req))
+  (define req-data (read-json (open-input-bytes (or raw #""))))
+  (response/json
+   (and (hash? req-data)
+        (let ((email (hash-ref req-data 'email #f))
+              (passwd (hash-ref req-data 'passwd #f))
+              (code (hash-ref req-data 'code #f)))
+          (and (string? email)
+               (string? passwd)
+               (string? code)
+               (match (ensure-authenticate/email+passwd email passwd (λ () #t))
+                 ["failed"
+                  (check-code-or email passwd code
+                                 (λ () (hasheq 'curation (curation-administrator? email)))
+                                 (λ () (send-password-reset-email! email)))]
+                 ["new-user"
+                  (check-code-or email passwd code
+                                 (λ () #t)
+                                 (λ () (send-account-registration-email! email)))]
+                 [#t
+                  (hasheq 'curation (curation-administrator? email))]))))))
 
 (define-jsonp/auth
   (jsonp/package/modify
@@ -232,7 +259,7 @@
 
 (define (jsonp/package/modify-all req)
   (define-jsonp/auth
-    (inner//jsonp/package/modify-all)
+    (internal:jsonp/package/modify-all)
     (define req-data (read-json (open-input-bytes (or (request-post-data/raw req) #""))))
     (and (hash? req-data)
          (let ((pkg (hash-ref req-data 'pkg #f))
@@ -256,7 +283,7 @@
                                #:tags tags
                                #:authors authors
                                #:versions versions)))))
-  (inner//jsonp/package/modify-all req))
+  (internal:jsonp/package/modify-all req))
 
 (define (valid-versions-list-entry? entry)
   (and (pair? entry)
@@ -265,7 +292,7 @@
        (valid-version? (car entry))
        (string? (cadr entry))))
 
-;; Call ONLY within scope of an ensure-authenticate!
+;; Call ONLY within scope of an ensure-authenticate! (because depends on non-#f current-user))
 (define (save-package! #:old-name old-name
                        #:new-name new-name
                        #:description description
@@ -492,7 +519,9 @@
 
 (define-values (main-dispatch main-url)
   (dispatch-rules
-   [("jsonp" "authenticate") jsonp/authenticate]
+   [("api" "authenticate") #:method "options" api/authenticate/options]
+   [("api" "authenticate") #:method "post" api/authenticate]
+   [("api" "upload") #:method "post" api/upload]
    [("jsonp" "update") jsonp/update]
    [("jsonp" "package" "del") jsonp/package/del]
    [("jsonp" "package" "modify") jsonp/package/modify]
@@ -504,7 +533,6 @@
    [("jsonp" "package" "author" "add") jsonp/package/author/add]
    [("jsonp" "package" "author" "del") jsonp/package/author/del]
    [("jsonp" "package" "curate") jsonp/package/curate]
-   [("api" "upload") #:method "post" api/upload]
    [("jsonp" "notice") jsonp/notice]
    [else redirect-to-static]))
 

@@ -2,8 +2,9 @@ var build_host = "http://pkg-build.racket-lang.org/";
 var dynamic_host = "pkgd.racket-lang.org";
 var dynamic_port = 443;
 
-function dynamic_url ( u ) {
-    return "https://" + dynamic_host + ":" + dynamic_port + u + "?callback=?"; }
+function dynamic_url ( u, without_callback ) {
+  return "https://" + dynamic_host + ":" + dynamic_port + u + (without_callback ? "" : "?callback=?");
+}
 
 function me () {
     return localStorage['email']; }
@@ -23,10 +24,19 @@ $( document ).ready(function() {
         return i.text(texts); }
 
     function dynamic_send ( u, o ) {
-        o['email'] = localStorage['email'];
-        o['passwd'] = localStorage['passwd'];
-        // xxx do a poll
-        $.getJSON( dynamic_url(u), o, function (r) { return; } ); }
+      var username = localStorage['email'];
+      var passwd = localStorage['passwd'];
+      // xxx do a poll
+      $.ajax({
+	dataType: "jsonp",
+	url: dynamic_url(u),
+	data: o,
+	beforeSend: function (xhr) {
+	  xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + passwd));
+	},
+	success: function (r) { return; }
+      });
+    }
 
     function dynamic_pkgsend ( u, o ) {
         o['pkg'] = active_info['name'];
@@ -565,37 +575,42 @@ $( document ).ready(function() {
         if ( c && p != cp ) {
             $( "#login_error" ).text( "You did not type in the same password." ); }
         else {
-            $.getJSON( dynamic_url("/jsonp/authenticate"),
-                       { email: e, passwd: p, code: c },
-                       function( resp ) {
-                           if ( resp == "emailed" ) {
-                               $( "#login_confirm_row" ).show();
-                               $( "#login_code_row" ).show();
+          $.ajax({
+	    dataType: "json",
+	    url: dynamic_url("/api/authenticate", true),
+	    contentType: 'application/json',
+	    method: 'POST',
+	    processData: false,
+	    data: JSON.stringify({ email: e, passwd: p, code: c }),
+	    success: function( resp ) {
+              if ( resp == "emailed" ) {
+                $( "#login_confirm_row" ).show();
+                $( "#login_code_row" ).show();
+                $( "#login_error" ).text( "Check your email for an email code." );
+	      } else if ( resp == "wrong-code" ) {
+                $( "#login_code_text" ).val("");
+                $( "#login_error" ).text( "That is not the correct code." );
+	      } else if ( resp ) {
+                $( "#login_email_text" ).val("");
+                $( "#login_passwd_text" ).val("");
+                $( "#login_confirm_text" ).val("");
+                $( "#login_code_text" ).val("");
+                $( "#login_confirm_row" ).hide();
+                $( "#login_code_row" ).hide();
+                localStorage['email'] = e;
+                localStorage['passwd'] = p;
+                $( "#login" ).dialog( "close" );
+                initial_login();
+	      } else {
+                $( "#login_confirm_row" ).show();
+                $( "#login_code_row" ).show();
+                $( "#login_error" ).text("Incorrect password, please retry or check your email for a change password code." );
+	      }
+	    }
+	  });
+	}
+    }
 
-                               $( "#login_error" ).text( "Check your email for an email code." ); }
-                           else if ( resp == "wrong-code" ) {
-                               $( "#login_code_text" ).val("");
-                               $( "#login_error" ).text( "That is not the correct code." ); }
-                           else if ( resp ) {
-                               $( "#login_email_text" ).val("");
-                               $( "#login_passwd_text" ).val("");
-                               $( "#login_confirm_text" ).val("");
-                               $( "#login_code_text" ).val("");
-
-                               $( "#login_confirm_row" ).hide();
-                               $( "#login_code_row" ).hide();
-
-                               localStorage['email'] = e;
-                               localStorage['passwd'] = p;
-
-                               $( "#login" ).dialog( "close" );
-
-                               initial_login(); }
-                           else {
-                               $( "#login_confirm_row" ).show();
-                               $( "#login_code_row" ).show();
-
-                               $( "#login_error" ).text( "Incorrect password, please retry or check your email for a change password code." ); }; } ); } }
     $( "#login_passwd_text" ).keypress( function (e) {
         if (e.which == 13) { login_submit (); } } );
     $( "#login_code_text" ).keypress( function (e) {
@@ -667,18 +682,28 @@ $( document ).ready(function() {
                          menu_logout (); }) ); }
 
     function initial_login () {
-        menu_logging();
-        $.getJSON( dynamic_url("/jsonp/authenticate"),
-                   { email: localStorage['email'], passwd: localStorage['passwd'], code: "" },
-                   function( resp ) {
-                       if ( $.isPlainObject(resp) ) {
-                           menu_loggedin( resp['curation'] ); }
-                       else {
-                           menu_logout();
-                           console.log( "login failed" ); } } ); }
-
+      menu_logging();
+      $.ajax({
+	dataType: "json",
+	url: dynamic_url("/api/authenticate", true),
+	contentType: 'application/json',
+	method: 'POST',
+	processData: false,
+	data: JSON.stringify({ email: localStorage['email'], passwd: localStorage['passwd'], code: "" }),
+        success: function( resp ) {
+          if ( $.isPlainObject(resp) ) {
+            menu_loggedin( resp['curation'] ); }
+          else {
+            menu_logout();
+            console.log( "login failed" );
+	  }
+	}
+      });
+    }
 
     if ( localStorage['email'] && localStorage['passwd'] ) {
         initial_login();
     } else {
-        menu_logout (); } });
+      menu_logout ();
+    }
+});
