@@ -243,20 +243,6 @@
                  [#t
                   (hasheq 'curation (curation-administrator? email))]))))))
 
-(define-jsonp/auth
-  (jsonp/package/modify
-   ['pkg pkg]
-   ['name mn-name]
-   ['description mn-desc]
-   ['source mn-source])
-  (save-package! #:old-name pkg
-                 #:new-name mn-name
-                 #:description mn-desc
-                 #:source mn-source
-                 #:tags #f
-                 #:authors #f
-                 #:versions #f))
-
 (define (jsonp/package/modify-all req)
   (define-jsonp/auth
     (internal:jsonp/package/modify-all)
@@ -353,103 +339,8 @@
           [else
            #f])))]))
 
-(define-jsonp/auth
-  (jsonp/package/version/add
-   ['pkg pkg]
-   ['version version]
-   ['source source])
-  (ensure-package-author
-   pkg
-   (λ ()
-     (cond
-       [(valid-version? version)
-        (package-info-set!
-         pkg
-         (hash-update (package-info pkg) 'versions
-                      (λ (v-ht)
-                        (hash-set v-ht version
-                                  (hasheq 'source source
-                                          'checksum "")))
-                      hash))
-        (signal-update! (list pkg))
-        #t]
-       [else
-        #f]))))
-
-(define-jsonp/auth
-  (jsonp/package/version/del
-   ['pkg pkg]
-   ['version version])
-  (ensure-package-author
-   pkg
-   (λ ()
-     (cond
-       [(valid-version? version)
-        (package-info-set!
-         pkg
-         (hash-update (package-info pkg) 'versions
-                      (λ (v-ht)
-                        (hash-remove v-ht version))
-                      hash))
-        (signal-update! (list pkg))
-        #t]
-       [else
-        #f]))))
-
 (define (tags-normalize ts)
   (remove-duplicates (sort ts string-ci<?)))
-
-(define-jsonp/auth
-  (jsonp/package/tag/add
-   ['pkg pkg]
-   ['tag tag])
-  (ensure-package-author
-   pkg
-   (lambda ()
-     (cond
-       [(valid-tag? tag)
-        (define i (package-info pkg))
-        (package-info-set!
-         pkg
-         (hash-set i 'tags (tags-normalize (cons tag (package-ref i 'tags)))))
-        (signal-static! (list pkg))
-        #t]
-       [else
-        #f]))))
-
-(define-jsonp/auth
-  (jsonp/package/tag/del
-   ['pkg pkg]
-   ['tag tag])
-  (ensure-package-author
-   pkg
-   (λ ()
-     (define i (package-info pkg))
-     (package-info-set!
-      pkg
-      (hash-set i 'tags
-                (remove tag
-                        (package-ref i 'tags))))
-     (signal-static! (list pkg))
-     #t)))
-
-(define-jsonp/auth
-  (jsonp/package/author/add
-   ['pkg pkg]
-   ['author author])
-  (ensure-package-author
-   pkg
-   (λ ()
-     (cond
-       [(valid-author? author)
-        (define i (package-info pkg))
-        (package-info-set!
-         pkg
-         (hash-set i 'author (format "~a ~a" (package-ref i 'author) author)))
-        (signal-static! (list pkg))
-        #t]
-       [else
-        #f]))))
 
 (define (ensure-package-author pkg f)
   (cond
@@ -457,27 +348,6 @@
      (f)]
     [else
      #f]))
-
-(define-jsonp/auth
-  (jsonp/package/author/del
-   ['pkg pkg]
-   ['author author])
-  (ensure-package-author
-   pkg
-   (λ ()
-     (cond
-       [(not (equal? (current-user) author))
-        (define i (package-info pkg))
-        (package-info-set!
-         pkg
-         (hash-set i 'author
-                   (string-join
-                    (remove author
-                            (author->list (package-ref i 'author))))))
-        (signal-static! (list pkg))
-        #t]
-       [else
-        #f]))))
 
 (define-jsonp/auth
   (jsonp/package/del
@@ -522,21 +392,24 @@
 
 (define-values (main-dispatch main-url)
   (dispatch-rules
-   [("api" "authenticate") #:method "options" api/authenticate/options]
+   ;;---------------------------------------------------------------------------
+   ;; User management
+   [("api" "authenticate") #:method "options" api/authenticate/options] ;; needed for CORS
    [("api" "authenticate") #:method "post" api/authenticate]
+   ;;---------------------------------------------------------------------------
+   ;; Wholesale package update of one kind or another
    [("api" "upload") #:method "post" api/upload]
    [("jsonp" "update") jsonp/update]
+   ;;---------------------------------------------------------------------------
+   ;; Individual package management
    [("jsonp" "package" "del") jsonp/package/del]
-   [("jsonp" "package" "modify") jsonp/package/modify]
    [("jsonp" "package" "modify-all") #:method "post" jsonp/package/modify-all]
-   [("jsonp" "package" "version" "add") jsonp/package/version/add]
-   [("jsonp" "package" "version" "del") jsonp/package/version/del]
-   [("jsonp" "package" "tag" "add") jsonp/package/tag/add]
-   [("jsonp" "package" "tag" "del") jsonp/package/tag/del]
-   [("jsonp" "package" "author" "add") jsonp/package/author/add]
-   [("jsonp" "package" "author" "del") jsonp/package/author/del]
    [("jsonp" "package" "curate") jsonp/package/curate]
+   ;;---------------------------------------------------------------------------
+   ;; Retrieve backend status message (no longer needed?)
    [("jsonp" "notice") jsonp/notice]
+   ;;---------------------------------------------------------------------------
+   ;; Static resources
    [else redirect-to-static]))
 
 (define-syntax-rule (forever . body)
