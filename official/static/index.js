@@ -175,7 +175,8 @@ $( document ).ready(function() {
         else {
             $( "#pi_versions_row" ).show(); }
 
-        ($( "#pi_dependencies" ).html("").append( $.map( pkgi['dependencies'], function ( pkg, i ) {
+        ($( "#pi_dependencies" ).html("").append( $.map( pkgi['dependencies'], function ( mpkg, i ) {
+            var pkg = mpkg.constructor === Array ? mpkg[0] : mpkg;
             return [jslink(pkg, function () { update_info(pkgdb[pkg]); } ), " "]; } ) ));
         if ( pkgi['dependencies'].length == 0 ) {
             $( "#pi_dependencies_row" ).hide(); }
