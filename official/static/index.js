@@ -309,6 +309,7 @@ $( document ).ready(function() {
                 h = ""; } } }
 
     function init_search_terms() {
+        search_terms["!deprecated"] = true;
         search_terms["!main-tests"] = true;
         search_terms["!main-distribution"] = true; }
 
@@ -320,7 +321,7 @@ $( document ).ready(function() {
           parse_hash(h); } }
 
     var expected_hash = "";
-    var default_search = "(!main-distribution)(!main-tests)";
+    var default_search = "(!deprecated)(!main-distribution)(!main-tests)";
     function change_hash ( v ) {
         if ( v == default_search && expected_hash != v ) {
             v = ""; }
