@@ -25,8 +25,12 @@
 (define users.new-path (build-path root "users.new"))
 (make-directory* users.new-path)
 
-(github-client_id (file->string (build-path root "client_id")))
-(github-client_secret (file->string (build-path root "client_secret")))
+(if (file-exists? (build-path root "client_id"))
+    (github-client_id (file->string (build-path root "client_id")))
+    (raise-user-error 'pkg-index "Cannot find file ~a" (build-path root "client_id")))
+(if (file-exists? (build-path root "client_scret"))
+    (github-client_secret (file->string (build-path root "client_secret")))
+    (raise-user-error 'pkg-index "Cannot find file ~a" (build-path root "client_secret")))
 
 (define cache-path (build-path root "cache"))
 (make-directory* cache-path)
