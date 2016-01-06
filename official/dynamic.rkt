@@ -14,7 +14,7 @@
          net/url
          racket/list
          net/sendmail
-         meta/pkg-index/basic/main
+         "../basic/main.rkt"
          file/sha1
          (prefix-in bcrypt- bcrypt)
          version/utils)
