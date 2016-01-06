@@ -13,7 +13,7 @@
          racket/list
          racket/path
          racket/promise
-         meta/pkg-index/basic/main
+         "../basic/main.rkt"
          "common.rkt"
          "notify.rkt"
          "s3.rkt")
