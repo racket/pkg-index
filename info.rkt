@@ -4,5 +4,5 @@
 (define compile-omit-paths 'all)
 (define test-omit-paths 'all)
 (define test-responsibles '((all jay)))
-(define deps '(racket-lib
-               bcrypt))
+(define deps '("racket-lib"
+               "bcrypt"))
