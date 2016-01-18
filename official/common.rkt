@@ -28,7 +28,7 @@
 (if (file-exists? (build-path root "client_id"))
     (github-client_id (file->string (build-path root "client_id")))
     (raise-user-error 'pkg-index "Cannot find file ~a" (build-path root "client_id")))
-(if (file-exists? (build-path root "client_scret"))
+(if (file-exists? (build-path root "client_secret"))
     (github-client_secret (file->string (build-path root "client_secret")))
     (raise-user-error 'pkg-index "Cannot find file ~a" (build-path root "client_secret")))
 

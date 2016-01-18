@@ -44,6 +44,52 @@ $( document ).ready(function() {
         var d = new Date( t * 1000 );
         return d.toLocaleString(); }
 
+    function process_build_logs( dest, value ) {
+        dest.html("");
+        if ( ! value['build'] ) { return; }
+        var color = 0;
+        var more = $('span');
+        if ( value['build']['success-log'] ) {
+            more.append($('<a>', { href: build_host + value['build']['success-log'] }).text( "install succeeds" ));
+        }
+        if ( value['build']['failure-log'] ) {
+            more.append($('<a>', { href: build_host + value['build']['failure-log'] }).text( "install fails" ));
+            color += 4;
+        }
+
+        if ( value['build']['dep-failure-log'] ) {
+            more.append(" with ")
+                .append($('<a>', { href: build_host + value['build']['dep-failure-log'] }).text( "dependency problems" ));
+            color += 3;
+        }
+        if ( value['build']['test-failure-log'] ) {
+            more.append(" with ")
+                .append($('<a>', { href: build_host + value['build']['test-failure-log'] }).text( "test failures" ));
+            color += 2;
+        }
+        if ( value['build']['test-success-log'] ) {
+            more.append(" with ")
+                .append($('<a>', { href: build_host + value['build']['test-success-log'] }).text( "no test failures" ));
+        }
+        if ( value['build']['min-failure-log'] ) {
+            more.append(" with ")
+                .append($('<a>', { href: build_host + value['build']['min-failure-log'] }).text( "extra system dependencies" ));
+            color += 1;
+        }
+        if ( value['build']['conflicts-log'] ) {
+            // XXX indirect
+            more.append(" with ")
+                .append($('<a>', { href: build_host + value['build']['conflicts-log'] }).text( "conflicts" ));
+            color += 4;
+        }
+
+        color = color > 4 ? 4 : color;
+        var colors = [ "go", "ok", "yield", "brake", "stop" ];
+        dest.attr("class", "build_" + colors[color]);
+        
+        dest.append(more);
+    }
+
     var active_info = false;
     var target_pkg = false;
     function update_info( pkgi ) {
@@ -123,21 +169,7 @@ $( document ).ready(function() {
                 dl = $('<del>').text(doc[1]); }
             return $('<span>').append(dl, " ") } ) );
 
-        if ( pkgi['build'] && pkgi['build']['failure-log'] ) {
-                $('#pi_build').html("")
-                .append($('<span>')
-                        .append($('<a>', { href: build_host + pkgi['build']['failure-log'] }).text( "fails" )));
-        } else if ( pkgi['build']['success-log'] && pkgi['build']['dep-failure-log'] ) {
-            $('#pi_build').html("")   
-                .append($('<span>')
-                        .append($('<a>', { href: build_host + pkgi['build']['success-log'] }).text( "succeeds" ))
-                        .append(" with ")
-                        .append($('<a>', { href: build_host + pkgi['build']['dep-failure-log'] }).text( "dependency problems" )));
-        } else if ( pkgi['build']['success-log'] ) {
-            $('#pi_build').html("")
-                .append($('<span>')
-                        .append($('<a>', { href: build_host + pkgi['build']['success-log'] }).text( "succeeds" )));
-        }
+        process_build_logs( $('#pi_build'), pkgi );        
 
         $( "#pi_description" ).text( pkgi['description'] );
         make_editbutton ( "pi_description", pkgi['description'], submit_mod_description );
@@ -469,24 +501,8 @@ $( document ).ready(function() {
 
         var dom = value['dom_obj'];
 
-        var bstatus;
-        if ( value['build'] && value['build']['failure-log'] ) {
-            bstatus = $('<td>', {class: 'build_red'})
-                .append($('<span>')
-                       .append($('<a>', { href: build_host + value['build']['failure-log'] }).text( "fails" )));
-        } else if ( value['build'] && value['build']['success-log'] && value['build']['dep-failure-log'] ) {
-            bstatus = $('<td>', {class: 'build_yellow'})
-                .append($('<span>')
-                        .append($('<a>', { href: build_host + value['build']['success-log'] }).text( "succeeds" ))
-                        .append(" with ")
-                        .append($('<a>', { href: build_host + value['build']['dep-failure-log'] }).text( "dependency problems" )));
-        } else if ( value['build'] && value['build']['success-log'] ) {
-            bstatus = $('<td>', {class: 'build_green'})
-                .append($('<span>')
-                        .append($('<a>', { href: build_host + value['build']['success-log'] }).text( "succeeds" )));
-        } else {
-            bstatus = $('<td>').html("");
-        }
+        var bstatus = $('<td>');
+        process_build_logs( bstatus, value );
 
         if (! value['build'] ) { value['build'] = {}; }
         if (! value['build']['docs'] ) { value['build']['docs'] = []; }
@@ -648,11 +664,14 @@ $( document ).ready(function() {
                          value['versions']['default']['source_url'] = "";
                          value['versions']['default']['checksum'] = "";
                          value['build'] = {};
+                         value['build']['min-failure-log'] = false;
                          value['build']['success-log'] = false;
-                         value['build']['failure-log'] = false;
-                         value['build']['dep-failure-log'] = false;
+                         value['build']['test-failure-log'] = false;
+                         value['build']['test-success-log'] = false;
                          value['build']['conflicts-log'] = false;
+                         value['build']['dep-failure-log'] = false;
                          value['build']['docs'] = [];
+                         value['build']['failure-log'] = false;
 
                          add_package_to_list(value);
                          evaluate_search();

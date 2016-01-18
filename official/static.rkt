@@ -236,22 +236,25 @@
        (hash-set*
         ht
         'build
-        (hash 'success-log (pbl 'success-log)
-              'failure-log (pbl 'failure-log)
-              'dep-failure-log (pbl 'dep-failure-log)
+        (hash 'min-failure-log (pbl 'min-failure-log)
+              'success-log (pbl 'success-log)
+              'test-failure-log (pbl 'test-failure-log)
+              'test-success-log (pbl 'test-success-log)
               'conflicts-log
               (match (pbl 'conflicts-log)
                 [#f #f]
                 [(? path-string? f) f]
                 [(conflicts/indirect file)
                  (list "indirect" file)])
+              'dep-failure-log (pbl 'dep-failure-log)
               'docs
               (for/list ([d (in-list (or (pbl 'docs) empty))])
                 (match d
                   [(doc/main n p) (list "main" n p)]
                   [(doc/extract n p) (list "extract" n p)]
                   [(doc/salvage n p) (list "salvage" n p)]
-                  [(doc/none n) (list "none" n)])))
+                  [(doc/none n) (list "none" n)]))
+              'failure-log (pbl 'failure-log))
         'versions
         (for/hash ([(v vht) (in-hash (hash-ref ht 'versions))])
           (values v
