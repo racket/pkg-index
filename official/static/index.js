@@ -48,7 +48,7 @@ $( document ).ready(function() {
         dest.html("");
         if ( ! value['build'] ) { return; }
         var color = 0;
-        var more = $('span');
+        var more = $("<span>");
         if ( value['build']['success-log'] ) {
             more.append($('<a>', { href: build_host + value['build']['success-log'] }).text( "install succeeds" ));
         }
