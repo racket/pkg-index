@@ -6,7 +6,7 @@
          racket/list
          racket/path
          racket/promise
-         meta/pkg-index/basic/main)
+         pkg-index/basic/main)
 
 (module+ main
   (require "common.rkt")
@@ -24,7 +24,7 @@
                (file->string
                 (build-path pkg-depo pkg-depo-dir (format "~a.plt.CHECKSUM" pkg-name)))
                'source
-               (format "http://planet-compat.racket-lang.org/~a/~a.plt"
+               (format "http://planet-compats.racket-lang.org/~a/~a.plt"
                        pkg-depo-dir pkg-name)
                'url
                (let ()

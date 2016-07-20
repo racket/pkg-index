@@ -233,9 +233,11 @@ tr#pi_delete_row td {
     text-decoration: none;
 }
 
-.build_green { background-color: #ccffcc; }
-.build_yellow { background-color: #ffffcc; }
-.build_red { background-color: #ffcccc; }
+.build_go { background-color: #ccffcc; }
+.build_ok { background-color: #ccffff; }
+.build_yield { background-color: #ffffcc; }
+.build_brake { background-color: #ffeecc; }
+.build_stop { background-color: #ffcccc; }
 
 /* racket nav */
 .navbar {

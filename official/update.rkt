@@ -91,11 +91,15 @@
                                                 old-checksum)))))
                       hash))
        (define* i
-         (if (and new-checksum (equal? new-checksum old-checksum)
-                  ;; update if 'modules was not present:
-                  (hash-ref i 'modules #f))
-             i
-             (hash-set (update-from-content i) 'last-updated now)))
+         (cond
+           [(not new-checksum)
+            i]
+           [(and (equal? new-checksum old-checksum)
+                 ;; update if 'modules was not present:
+                 (hash-ref i 'modules #f))
+            i]
+           [else
+            (hash-set (update-from-content i) 'last-updated now)]))
        (define* i
          (hash-set i 'checksum-error #f))
        (log! "\twriting with checksum ~v" (hash-ref i 'checksum))
