@@ -20,6 +20,7 @@
   (system* s3cmd-path
            "-c" s3-config
            "sync"
+           "-v"
            "-m" "application/javascript"
            "--acl-public"
            "--add-header" "Content-Encoding:gzip"
@@ -31,7 +32,9 @@
   (system* s3cmd-path
            "-c" s3-config
            "sync"
+           "-v"
            "-M"
+           "--no-mime-magic"
            "--acl-public"
            "--delete-removed"
            (format "~a/" static-path)

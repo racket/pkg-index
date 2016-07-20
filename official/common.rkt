@@ -26,9 +26,14 @@
 (define users.new-path (get-config users.new-path (build-path root "users.new")))
 (make-directory* users.new-path)
 
-(github-client_id (get-config github-client_id (file->string (build-path root "client_id"))))
-(github-client_secret (get-config github-client_secret
-                                  (file->string (build-path root "client_secret"))))
+(let ((check+load-file (lambda (filename)
+                         (if (file-exists? filename)
+                             (file->string filename)
+                             (raise-user-error 'pkg-index "Cannot find file ~a" filename)))))
+  (github-client_id (get-config github-client_id
+                                (check+load-file (build-path root "client_id"))))
+  (github-client_secret (get-config github-client_secret
+                                    (check+load-file (build-path root "client_secret")))))
 
 (define cache-path (get-config cache-path (build-path root "cache")))
 (make-directory* cache-path)

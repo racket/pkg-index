@@ -242,17 +242,7 @@
 
           (define dest-dir
             (build-path orig pkg-short))
-          (when-delete?
-           (delete-directory/files dest-dir))
-          (unless (directory-exists? dest-dir)
-            (printf "Unpacking ~a\n" pkg-short)
-            (make-directory dest-dir)
-            (unpack dest pkg-dir
-                    (lambda (x) (printf "~a\n" x))
-                    (lambda () dest-dir)
-                    #f
-                    (lambda (auto-dir main-dir file) dest-dir)))
-
+          
           (define pkg/no-plt
             (format "~a~a"
                     (regexp-replace* #rx"\\.plt$" pkg "")
@@ -263,6 +253,17 @@
             (format "~a.plt" pkg-name))
           (define pkg-dir
             (build-path work pkg-name))
+
+          (when-delete?
+           (delete-directory/files dest-dir))
+          (unless (directory-exists? dest-dir)
+            (printf "Unpacking ~a\n" pkg-short)
+            (make-directory dest-dir)
+            (unpack dest pkg-dir
+                    (lambda (x) (printf "~a\n" x))
+                    (lambda () dest-dir)
+                    #f
+                    (lambda (auto-dir main-dir file) dest-dir)))
 
           (when-delete?
            (delete-directory/files pkg-dir))
