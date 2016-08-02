@@ -327,7 +327,7 @@
       (sort (map package-info all-pkg-list)
             >
             #:key (λ (i) (hash-ref i 'last-updated))))
-    (define top (hash-ref (first ps) 'last-updated))
+    (define top (hash-ref (if (pair? ps) (first ps) (hash)) 'last-updated 0))
     (define (atom-format-time t)
       (format "~aZ" (format-time t)))
     (response/xexpr
@@ -452,6 +452,7 @@
   (let ()
     (log! "static: removing deleted files")
     (define pkg-path (build-path static-path "pkg"))
+    (when (not (directory-exists? pkg-path)) (make-directory pkg-path))
     (for ([f (in-list (directory-list pkg-path))]
           #:unless (regexp-match #"json$" (path->string f))
           #:unless (member (path->string f) all-pkg-list))
