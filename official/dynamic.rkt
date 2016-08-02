@@ -182,7 +182,7 @@
    empty empty
    (list
     "Someone tried to login with your email address for an account on the Racket Package Catalog, but failed."
-    "If you this was you, please use this code to reset your password:"
+    "If this was you, please use this code to reset your password:"
     ""
     (generate-a-code! email)
     ""
