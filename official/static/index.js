@@ -23,12 +23,14 @@ $( document ).ready(function() {
                            click: function () { clickf(i); } } );
         return i.text(texts); }
 
-    function dynamic_send ( u, o ) {
+    function dynamic_send ( u, o, maybe_options ) {
+      var options = maybe_options || {};
       var username = localStorage['email'];
       var passwd = localStorage['passwd'];
       // xxx do a poll
       $.ajax({
 	dataType: "jsonp",
+        method: options.method || 'GET',
 	url: dynamic_url(u),
 	data: o,
 	beforeSend: function (xhr) {
@@ -41,6 +43,28 @@ $( document ).ready(function() {
     function dynamic_pkgsend ( u, o ) {
         o['pkg'] = active_info['name'];
         dynamic_send ( u, o ); }
+
+    function dynamic_pkgupdate(o, maybe_old_name) {
+      var other_versions = []
+      for (var v in o.versions) {
+        if (v !== 'default') {
+          other_versions.push([v, o.versions[v].source]);
+        }
+      }
+
+      var reqdata = {
+        pkg: typeof maybe_old_name === 'undefined' ? o.name : maybe_old_name,
+        name: o.name,
+        description: o.description,
+        source: o.versions['default'].source,
+        tags: o.tags,
+        authors: o.authors,
+        versions: other_versions
+      };
+
+      console.log('dynamic_pkgupdate', o, reqdata);
+      dynamic_send("/jsonp/package/modify-all", JSON.stringify(reqdata), {method: 'POST'});
+    }
 
     $("#package_info").dialog({
         beforeClose: function ( event, ui ) { evaluate_search(); },
@@ -238,12 +262,12 @@ $( document ).ready(function() {
         active_info = pkgi; };
 
     function submit_remove_tag ( tag ) {
-        dynamic_pkgsend( "/jsonp/package/tag/del", { tag: tag } );
-
         var tag_index = $.inArray(tag, active_info['tags']);
         active_info['tags'].splice( tag_index, 1 );
         delete active_info['search-terms'][ tag ];
         evaluate_search();
+
+        dynamic_pkgupdate(active_info);
 
         update_info( active_info ); }
     function submit_add_tag () {
@@ -251,11 +275,11 @@ $( document ).ready(function() {
         var tag = it.val();
         it.val("");
 
-        dynamic_pkgsend( "/jsonp/package/tag/add", { tag: tag } );
-
         active_info['tags'].push( tag );
         active_info['search-terms'][ tag ] = true;
         evaluate_search();
+
+        dynamic_pkgupdate(active_info);
 
         update_info( active_info ); }
     $( "#pi_add_tag_text" ).keypress( function (e) {
@@ -263,12 +287,12 @@ $( document ).ready(function() {
     $( "#pi_add_tag_button" ).click( function (e) { submit_add_tag (); } );
 
     function submit_remove_author ( author ) {
-        dynamic_pkgsend( "/jsonp/package/author/del", { author: author } );
-
         var author_index = $.inArray(author, active_info['authors']);
         active_info['authors'].splice( author_index, 1 );
         delete active_info['search-terms'][ "author:" + author ];
         evaluate_search();
+
+        dynamic_pkgupdate(active_info);
 
         update_info( active_info ); }
     function submit_add_author () {
@@ -276,11 +300,11 @@ $( document ).ready(function() {
         var author = it.val();
         it.val("");
 
-        dynamic_pkgsend( "/jsonp/package/author/add", { author: author } );
-
         active_info['authors'].push( author );
         active_info['search-terms'][ "author:" + author ] = true;
         evaluate_search();
+
+        dynamic_pkgupdate(active_info);
 
         update_info( active_info ); }
     $( "#pi_add_author_text" ).keypress( function (e) {
@@ -288,9 +312,9 @@ $( document ).ready(function() {
     $( "#pi_add_author_button" ).click( function (e) { submit_add_author (); } );
 
     function submit_remove_version ( version ) {
-        dynamic_pkgsend( "/jsonp/package/version/del", { version: version } );
-
         delete active_info['versions'][version];
+
+        dynamic_pkgupdate(active_info);
 
         update_info( active_info ); }
     function submit_add_version () {
@@ -301,9 +325,9 @@ $( document ).ready(function() {
         var source = it.val();
         it.val("");
 
-        dynamic_pkgsend( "/jsonp/package/version/add", { version: version, source: source } );
-
         active_info['versions'][version] = { source: source, checksum: "" };
+
+        dynamic_pkgupdate(active_info);
 
         update_info( active_info ); }
     $( "#pi_add_version_source_text" ).keypress( function (e) {
@@ -311,14 +335,13 @@ $( document ).ready(function() {
     $( "#pi_add_version_button" ).click( function (e) { submit_add_version (); } );
 
     function submit_mod ( new_name, new_description, new_source ) {
-        dynamic_pkgsend( "/jsonp/package/modify",
-                         { name: new_name,
-                           description: new_description,
-                           source: new_source } );
+        var old_name = active_info['name'];
 
         active_info['name'] = new_name;
         active_info['description'] = new_description;
         active_info['versions']['default']['source'] = new_source;
+
+        dynamic_pkgupdate(active_info, old_name);
 
         update_info( active_info ); }
     function submit_mod_name ( newv ) {
