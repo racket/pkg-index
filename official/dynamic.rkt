@@ -301,7 +301,9 @@
                      h]))
            (h (if tags0 (hash-set h 'tags (tags-normalize tags0)) h))
            (h (if versions0
-                  (hash-set h 'versions (for/hash [(v versions0)] (values (car v) (cadr v))))
+                  (hash-set h 'versions (for/hash [(v versions0)]
+                                          (values (car v)
+                                                  (hasheq 'source (cadr v) 'checksum ""))))
                   h))
            (h (hash-set h 'name new-name))
            (h (hash-set h 'source source))
