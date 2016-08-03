@@ -397,7 +397,9 @@
 
 (define-jsonp/auth
   (jsonp/update)
-  (signal-update! (packages-of (current-user)))
+  (define user-packages (packages-of (current-user)))
+  (log! "Packages of ~a: ~v" (current-user) user-packages)
+  (signal-update! user-packages)
   #t)
 
 (define jsonp/notice
