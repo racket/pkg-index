@@ -23,19 +23,21 @@ $( document ).ready(function() {
                            click: function () { clickf(i); } } );
         return i.text(texts); }
 
-    function dynamic_send ( u, o, maybe_options ) {
-      var options = maybe_options || {};
+    function set_basic_authorization_header(xhr) {
+      var username = localStorage['email'];
+      var passwd = localStorage['passwd'];
+      xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + passwd));
+    }
+
+    function dynamic_send ( u, o ) {
       var username = localStorage['email'];
       var passwd = localStorage['passwd'];
       // xxx do a poll
       $.ajax({
 	dataType: "jsonp",
-        method: options.method || 'GET',
 	url: dynamic_url(u),
 	data: o,
-	beforeSend: function (xhr) {
-	  xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + passwd));
-	},
+	beforeSend: set_basic_authorization_header,
 	success: function (r) { return; }
       });
     }
@@ -63,7 +65,15 @@ $( document ).ready(function() {
       };
 
       console.log('dynamic_pkgupdate', o, reqdata);
-      dynamic_send("/jsonp/package/modify-all", JSON.stringify(reqdata), {method: 'POST'});
+      $.ajax({
+	dataType: "json",
+	url: dynamic_url("/api/package/modify-all", true),
+	contentType: 'application/json',
+	method: 'POST',
+        beforeSend: set_basic_authorization_header,
+	processData: false,
+	data: JSON.stringify(reqdata)
+      });
     }
 
     $("#package_info").dialog({

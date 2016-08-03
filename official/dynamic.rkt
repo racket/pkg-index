@@ -205,7 +205,7 @@
 (define *cors-headers*
   (list (header #"Access-Control-Allow-Origin" #"*")
         (header #"Access-Control-Allow-Methods" #"POST, OPTIONS")
-        (header #"Access-Control-Allow-Headers" #"content-type")))
+        (header #"Access-Control-Allow-Headers" #"content-type, authorization")))
 
 (define (response/json o)
   (response/output
@@ -214,7 +214,7 @@
    #:headers *cors-headers*
    #:mime-type #"application/json"))
 
-(define (api/authenticate/options req)
+(define (api/*/options req)
   ;; This is gross. OPTIONS handling should be able to be made global.
   (response/output
    (lambda (p) (void))
@@ -243,33 +243,35 @@
                  [#t
                   (hasheq 'curation (curation-administrator? email))]))))))
 
-(define (jsonp/package/modify-all req)
-  (define-jsonp/auth
-    (internal:jsonp/package/modify-all)
-    (define req-data (read-json (open-input-bytes (or (request-post-data/raw req) #""))))
-    (and (hash? req-data)
-         (let ((pkg (hash-ref req-data 'pkg #f))
-               (name (hash-ref req-data 'name #f))
-               (description (hash-ref req-data 'description #f))
-               (source (hash-ref req-data 'source #f))
-               (tags (hash-ref req-data 'tags #f))
-               (authors (hash-ref req-data 'authors #f))
-               (versions (hash-ref req-data 'versions #f)))
-           (and (string? pkg)
-                (string? name)
-                (string? description)
-                (string? source)
-                (or (not tags) (and (list? tags) (andmap valid-tag? tags)))
-                (or (not authors) (and (list? authors) (andmap valid-author? authors)))
-                (or (not versions) (and (list? versions) (andmap valid-versions-list-entry? versions)))
-                (save-package! #:old-name pkg
-                               #:new-name name
-                               #:description description
-                               #:source source
-                               #:tags tags
-                               #:authors authors
-                               #:versions versions)))))
-  (internal:jsonp/package/modify-all req))
+(define (api/package/modify-all req)
+  (response/json
+   (ensure-authenticate
+    req
+    (lambda ()
+      (define req-data (read-json (open-input-bytes (or (request-post-data/raw req) #""))))
+      (and (hash? req-data)
+           (let ((pkg (hash-ref req-data 'pkg #f))
+                 (name (hash-ref req-data 'name #f))
+                 (description (hash-ref req-data 'description #f))
+                 (source (hash-ref req-data 'source #f))
+                 (tags (hash-ref req-data 'tags #f))
+                 (authors (hash-ref req-data 'authors #f))
+                 (versions (hash-ref req-data 'versions #f)))
+             (and (string? pkg)
+                  (string? name)
+                  (string? description)
+                  (string? source)
+                  (or (not tags) (and (list? tags) (andmap valid-tag? tags)))
+                  (or (not authors) (and (list? authors) (andmap valid-author? authors)))
+                  (or (not versions) (and (list? versions)
+                                          (andmap valid-versions-list-entry? versions)))
+                  (save-package! #:old-name pkg
+                                 #:new-name name
+                                 #:description description
+                                 #:source source
+                                 #:tags tags
+                                 #:authors authors
+                                 #:versions versions))))))))
 
 (define (valid-versions-list-entry? entry)
   (and (pair? entry)
@@ -396,7 +398,7 @@
   (dispatch-rules
    ;;---------------------------------------------------------------------------
    ;; User management
-   [("api" "authenticate") #:method "options" api/authenticate/options] ;; needed for CORS
+   [("api" "authenticate") #:method "options" api/*/options] ;; needed for CORS
    [("api" "authenticate") #:method "post" api/authenticate]
    ;;---------------------------------------------------------------------------
    ;; Wholesale package update of one kind or another
@@ -405,7 +407,8 @@
    ;;---------------------------------------------------------------------------
    ;; Individual package management
    [("jsonp" "package" "del") jsonp/package/del]
-   [("jsonp" "package" "modify-all") #:method "post" jsonp/package/modify-all]
+   [("api" "package" "modify-all") #:method "options" api/*/options] ;; needed for CORS
+   [("api" "package" "modify-all") #:method "post" api/package/modify-all]
    [("jsonp" "package" "curate") jsonp/package/curate]
    ;;---------------------------------------------------------------------------
    ;; Retrieve backend status message (no longer needed?)
