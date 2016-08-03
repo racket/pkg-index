@@ -381,7 +381,16 @@
 
 (define (package-author? p u)
   (define i (package-info p))
-  (member u (author->list (package-ref i 'author))))
+  (cond
+    [(hash-has-key? i 'author)
+     ;; should almost always be the case (?!?!) but I'm adding this
+     ;; check because in the live database, the `compiler-doc` package
+     ;; is missing an author, so we need a fallback in order for
+     ;; `packages-of` to work.
+     (member u (author->list (package-ref i 'author)))]
+    [else
+     (log! "WARNING: Package ~a is missing an author field" p)
+     #f]))
 
 (define (packages-of u)
   (filter (λ (p) (package-author? p u)) (package-list)))
