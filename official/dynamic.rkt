@@ -262,7 +262,9 @@
                   (string? description)
                   (string? source)
                   (or (not tags) (and (list? tags) (andmap valid-tag? tags)))
-                  (or (not authors) (and (list? authors) (andmap valid-author? authors)))
+                  (or (not authors) (and (list? authors)
+                                         (pair? authors)
+                                         (andmap valid-author? authors)))
                   (or (not versions) (and (list? versions)
                                           (andmap valid-versions-list-entry? versions)))
                   (save-package! #:old-name pkg
