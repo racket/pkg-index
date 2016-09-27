@@ -315,15 +315,23 @@
            (h (hash-set h 'last-edit (current-seconds))))
       (package-info-set! new-name h)))
   (cond
-    [(not (andmap valid-author? (or authors0 '()))) #f]
-    [(not (andmap valid-tag? (or tags0 '()))) #f]
-    [(not (andmap valid-versions-list-entry? (or versions0 '()))) #f]
+    [(not (andmap valid-author? (or authors0 '())))
+     (log! "package ~v/~v: some bad author" old-name new-name)
+     #f]
+    [(not (andmap valid-tag? (or tags0 '())))
+     (log! "package ~v/~v: some bad tag" old-name new-name)
+     #f]
+    [(not (andmap valid-versions-list-entry? (or versions0 '())))
+     (log! "package ~v/~v: some version list entry" old-name new-name)
+     #f]
     [new-package?
      (cond
       [(or (package-exists? new-name)
            (not (valid-name? new-name)))
+       (log! "attempt to create package ~v failed" new-name)
        #f]
       [else
+       (log! "creating package ~v" new-name)
        (do-save! (hasheq))
        (signal-update! (list new-name))
        #t])]
@@ -333,16 +341,19 @@
       (λ ()
         (cond
           [(equal? new-name old-name)
+           (log! "updating package ~v" old-name)
            (do-save! (package-info old-name))
            (signal-update! (list new-name))
            #t]
           [(and (valid-name? new-name)
                 (not (package-exists? new-name)))
+           (log! "updating and renaming package ~v to ~v" old-name new-name)
            (do-save! (package-info old-name))
            (package-remove! old-name)
            (signal-update! (list new-name))
            #t]
           [else
+           (log! "attempt to rename package ~v to ~v failed" old-name new-name)
            #f])))]))
 
 (define (tags-normalize ts)
@@ -353,6 +364,10 @@
     [(package-author? pkg (current-user))
      (f)]
     [else
+     (log!
+      "attempt to modify package ~v by ~v failed because they are not an author of that package"
+      pkg
+      (current-user))
      #f]))
 
 (define-jsonp/auth
