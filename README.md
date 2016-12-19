@@ -1,5 +1,16 @@
 # Package Catalog Server
 
+## Dependencies
+
+Requires the following packages to be installed:
+
+ - `plt-service-monitor`
+ - `web-server-lib`
+ - `git://github.com/samth/bcrypt.rkt`
+    - which in turn depends on `dynext-lib`
+
+## Configuration
+
 Common configuration keys:
 
  - `src` - path; defaults to this package's `official/.` directory.
