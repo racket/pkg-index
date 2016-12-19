@@ -132,7 +132,8 @@
 (define (log! . args)
   (parameterize ([date-display-format 'iso-8601])
     (printf "~a: ~a\n" (date->string (current-date) #t)
-            (apply format args))))
+            (apply format args))
+    (flush-output)))
 
 (define (run! f args)
   (log! "START ~a ~v" f args)
