@@ -60,6 +60,12 @@
               "stamourv@racket-lang.org"
               "tonygarnockjones@gmail.com")))
 
+;; This predicate means "Can `u` edit or delete arbitrary packages?"
+;; For now, it's the same set of people as can curate packages, but we
+;; can think about how we want to do this in future.
+(define (superuser? u)
+  (curation-administrator? u))
+
 (define (api/upload req)
   (define req-data (read (open-input-bytes (or (request-post-data/raw req) #""))))
   (match-define (list email given-password pis) req-data)
@@ -232,17 +238,21 @@
           (and (string? email)
                (string? passwd)
                (string? code)
-               (match (ensure-authenticate/email+passwd email passwd (λ () #t))
-                 ["failed"
-                  (check-code-or email passwd code
-                                 (λ () (hasheq 'curation (curation-administrator? email)))
-                                 (λ () (send-password-reset-email! email)))]
-                 ["new-user"
-                  (check-code-or email passwd code
-                                 (λ () #t)
-                                 (λ () (send-account-registration-email! email)))]
-                 [#t
-                  (hasheq 'curation (curation-administrator? email))]))))))
+               (let ()
+                 (define (on-successful-authentication)
+                   (hasheq 'curation (curation-administrator? email)
+                           'superuser (superuser? email)))
+                 (match (ensure-authenticate/email+passwd email passwd (λ () #t))
+                   ["failed"
+                    (check-code-or email passwd code
+                                   (λ () (on-successful-authentication))
+                                   (λ () (send-password-reset-email! email)))]
+                   ["new-user"
+                    (check-code-or email passwd code
+                                   (λ () #t)
+                                   (λ () (send-account-registration-email! email)))]
+                   [#t
+                    (on-successful-authentication)])))))))
 
 (define (api/package/modify-all req)
   (response/json
@@ -363,6 +373,9 @@
 (define (ensure-package-author pkg f)
   (cond
     [(package-author? pkg (current-user))
+     (f)]
+    [(superuser? (current-user))
+     (log! "user ~v invoked their superpowers to modify package ~v" (current-user) pkg)
      (f)]
     [else
      (log!
