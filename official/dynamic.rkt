@@ -306,10 +306,11 @@
   (define (do-save! base-hash)
     (let* ((h base-hash)
            (h (cond [authors0
-                     (hash-set h
-                               'author
-                               (string-join
-                                (set->list (set-add (list->set authors0) (current-user)))))]
+                     (define authors1
+                       (if (superuser? (current-user))
+                           authors0
+                           (set->list (set-add (list->set authors0) (current-user)))))
+                     (hash-set h 'author (string-join authors1))]
                     [new-package?
                      (hash-set h 'author (current-user))]
                     [else
