@@ -30,15 +30,15 @@ $( document ).ready(function() {
     }
 
     function dynamic_send ( u, o ) {
-      var username = localStorage['email'];
-      var passwd = localStorage['passwd'];
-      // xxx do a poll
+      // Rely on the fact that we do not care about the response here
+      // to avoid the horrible jquery jsonp transport, which works by
+      // inserting script tags, and thus makes beforeSend unavailable,
+      // since it doesn't even use xhr.
       $.ajax({
-	dataType: "jsonp",
-	url: dynamic_url(u),
+	dataType: "json",
+	url: dynamic_url(u, true),
 	data: o,
-	beforeSend: set_basic_authorization_header,
-	success: function (r) { return; }
+	beforeSend: set_basic_authorization_header
       });
     }
 
