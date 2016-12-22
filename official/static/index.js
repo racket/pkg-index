@@ -512,7 +512,7 @@ $( document ).ready(function() {
         if ( new_ring == old_ring ) {
             return ""; }
         else {
-            return jslink((down_p ? "&blacktriangledown;" : "&blacktriangle;"),
+            return jslink((down_p ? "▾" : "▴"),
                           function () {
                               dynamic_send ( "/jsonp/package/curate",
                                              { pkg: value['name'],
