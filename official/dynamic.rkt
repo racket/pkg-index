@@ -20,7 +20,6 @@
          "../basic/main.rkt"
          "build-update.rkt"
          "common.rkt"
-         "jsonp.rkt"
          "notify.rkt"
          "static.rkt"
          "update.rkt")
@@ -114,11 +113,6 @@
                                [scheme (get-config redirect-to-static-scheme "http")]
                                [host (get-config redirect-to-static-host "pkgs.racket-lang.org")]
                                [port (get-config redirect-to-static-port 80)]))))))
-
-(define-syntax-rule (define-jsonp/auth (f . pat) . body)
-  (define (f req)
-    (define-jsonp (f . pat) (ensure-authenticate req (λ () . body)))
-    (f req)))
 
 (define (salty str)
   (sha1 (open-input-string str)))
@@ -221,6 +215,12 @@
    #:headers *cors-headers*
    #:mime-type #"application/json"))
 
+(define (wrap-with-cors-handler dispatcher)
+  (lambda (req)
+    (if (string-ci=? (bytes->string/latin-1 (request-method req)) "options")
+        (api/*/options req)
+        (dispatcher req))))
+
 (define (api/*/options req)
   ;; This is gross. OPTIONS handling should be able to be made global.
   (response/output
@@ -254,37 +254,50 @@
                    [#t
                     (on-successful-authentication)])))))))
 
-(define (api/package/modify-all req)
+(define (authenticated-json-post-rpc-service req handler)
   (response/json
    (ensure-authenticate
     req
     (lambda ()
-      (define req-data (read-json (open-input-bytes (or (request-post-data/raw req) #""))))
-      (and (hash? req-data)
-           (let ((pkg (hash-ref req-data 'pkg #f))
-                 (name (hash-ref req-data 'name #f))
-                 (description (hash-ref req-data 'description #f))
-                 (source (hash-ref req-data 'source #f))
-                 (tags (hash-ref req-data 'tags #f))
-                 (authors (hash-ref req-data 'authors #f))
-                 (versions (hash-ref req-data 'versions #f)))
-             (and (string? pkg)
-                  (string? name)
-                  (string? description)
-                  (string? source)
-                  (or (not tags) (and (list? tags) (andmap valid-tag? tags)))
-                  (or (not authors) (and (list? authors)
-                                         (pair? authors)
-                                         (andmap valid-author? authors)))
-                  (or (not versions) (and (list? versions)
-                                          (andmap valid-versions-list-entry? versions)))
-                  (save-package! #:old-name pkg
-                                 #:new-name name
-                                 #:description description
-                                 #:source source
-                                 #:tags tags
-                                 #:authors authors
-                                 #:versions versions))))))))
+      (handler (read-json (open-input-bytes (or (request-post-data/raw req) #""))))))))
+
+(define-syntax-rule (define-authenticated-json-post-rpc-service function-name
+                      [(pat ...) body ...] ...)
+  (define (function-name req)
+    (authenticated-json-post-rpc-service
+     req
+     (match-lambda
+       [(hash-table pat ...) body ...] ...))))
+
+(define (api/package/modify-all req)
+  (authenticated-json-post-rpc-service
+   req
+   (lambda (req-data)
+     (and (hash? req-data)
+          (let ((pkg (hash-ref req-data 'pkg #f))
+                (name (hash-ref req-data 'name #f))
+                (description (hash-ref req-data 'description #f))
+                (source (hash-ref req-data 'source #f))
+                (tags (hash-ref req-data 'tags #f))
+                (authors (hash-ref req-data 'authors #f))
+                (versions (hash-ref req-data 'versions #f)))
+            (and (string? pkg)
+                 (string? name)
+                 (string? description)
+                 (string? source)
+                 (or (not tags) (and (list? tags) (andmap valid-tag? tags)))
+                 (or (not authors) (and (list? authors)
+                                        (pair? authors)
+                                        (andmap valid-author? authors)))
+                 (or (not versions) (and (list? versions)
+                                         (andmap valid-versions-list-entry? versions)))
+                 (save-package! #:old-name pkg
+                                #:new-name name
+                                #:description description
+                                #:source source
+                                #:tags tags
+                                #:authors authors
+                                #:versions versions)))))))
 
 (define (valid-versions-list-entry? entry)
   (and (pair? entry)
@@ -385,31 +398,27 @@
       (current-user))
      #f]))
 
-(define-jsonp/auth
-  (jsonp/package/del
-   ['pkg pkg])
-  (ensure-package-author
-   pkg
-   (λ ()
-     (package-remove! pkg)
-     (signal-static! empty)
-     #f)))
+(define-authenticated-json-post-rpc-service api/package/del
+  [(['pkg pkg])
+   (ensure-package-author
+    pkg
+    (λ ()
+      (package-remove! pkg)
+      (signal-static! empty)
+      #f))])
 
-(define-jsonp/auth
-  (jsonp/package/curate
-   ['pkg pkg]
-   ['ring ring-s])
-  (cond
-    [(curation-administrator? (current-user))
-     (define i (package-info pkg))
-     (define ring-n (string->number ring-s))
-     (package-info-set!
-      pkg
-      (hash-set i 'ring (min 2 (max 0 ring-n))))
-     (signal-static! (list pkg))
-     #t]
-    [else
-     #f]))
+(define-authenticated-json-post-rpc-service api/package/curate
+  [(['pkg pkg] ['ring ring])
+   (cond
+     [(curation-administrator? (current-user))
+      (define i (package-info pkg))
+      (package-info-set!
+       pkg
+       (hash-set i 'ring (min 2 (max 0 ring))))
+      (signal-static! (list pkg))
+      #t]
+     [else
+      #f])])
 
 (define (package-author? p u)
   (define i (package-info p))
@@ -427,35 +436,33 @@
 (define (packages-of u)
   (filter (λ (p) (package-author? p u)) (package-list)))
 
-(define-jsonp/auth
-  (jsonp/update)
-  (define user-packages (packages-of (current-user)))
-  (log! "Packages of ~a: ~v" (current-user) user-packages)
-  (signal-update! user-packages)
-  #t)
+(define-authenticated-json-post-rpc-service api/update
+  [()
+   (define user-packages (packages-of (current-user)))
+   (log! "Packages of ~a: ~v" (current-user) user-packages)
+   (signal-update! user-packages)
+   #t])
 
-(define jsonp/notice
-  (make-jsonp-responder (λ (args) (file->string notice-path))))
+(define (api/notice req)
+  (response/json (file->string notice-path)))
 
 (define-values (main-dispatch main-url)
   (dispatch-rules
    ;;---------------------------------------------------------------------------
    ;; User management
-   [("api" "authenticate") #:method "options" api/*/options] ;; needed for CORS
    [("api" "authenticate") #:method "post" api/authenticate]
    ;;---------------------------------------------------------------------------
    ;; Wholesale package update of one kind or another
    [("api" "upload") #:method "post" api/upload]
-   [("jsonp" "update") jsonp/update]
+   [("api" "update") #:method "post" api/update]
    ;;---------------------------------------------------------------------------
    ;; Individual package management
-   [("jsonp" "package" "del") jsonp/package/del]
-   [("api" "package" "modify-all") #:method "options" api/*/options] ;; needed for CORS
+   [("api" "package" "del") #:method "post" api/package/del]
    [("api" "package" "modify-all") #:method "post" api/package/modify-all]
-   [("jsonp" "package" "curate") jsonp/package/curate]
+   [("api" "package" "curate") #:method "post" api/package/curate]
    ;;---------------------------------------------------------------------------
    ;; Retrieve backend status message (no longer needed?)
-   [("jsonp" "notice") jsonp/notice]
+   [("api" "notice") api/notice]
    ;;---------------------------------------------------------------------------
    ;; Static resources
    [else redirect-to-static]))
@@ -477,7 +484,7 @@
       (log! "update-t: sleeping for 1 hour")
       (sleep (* 1 60 60)))))
   (serve/servlet
-   main-dispatch
+   (wrap-with-cors-handler main-dispatch)
    #:command-line? #t
    ;; xxx I am getting strange behavior on some connections... maybe
    ;; this will help?

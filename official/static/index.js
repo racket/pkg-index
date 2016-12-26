@@ -29,22 +29,23 @@ $( document ).ready(function() {
       xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + passwd));
     }
 
-    function dynamic_send ( u, o ) {
-      // Rely on the fact that we do not care about the response here
-      // to avoid the horrible jquery jsonp transport, which works by
-      // inserting script tags, and thus makes beforeSend unavailable,
-      // since it doesn't even use xhr.
-      $.ajax({
+    function dynamic_send ( u, o, maybe_success, maybe_authenticatep ) {
+      var ajax_params = {
 	dataType: "json",
 	url: dynamic_url(u, true),
-	data: o,
-	beforeSend: set_basic_authorization_header
-      });
+        contentType: 'application/json',
+        method: 'POST',
+        processData: false,
+	data: JSON.stringify(o)
+      };
+      if ((typeof maybe_authenticatep === 'undefined') || maybe_authenticatep) {
+        ajax_params.beforeSend = set_basic_authorization_header;
+      }
+      if (maybe_success) {
+        ajax_params.success = maybe_success;
+      }
+      $.ajax(ajax_params);
     }
-
-    function dynamic_pkgsend ( u, o ) {
-        o['pkg'] = active_info['name'];
-        dynamic_send ( u, o ); }
 
     function dynamic_pkgupdate(o, maybe_old_name) {
       var other_versions = []
@@ -65,15 +66,7 @@ $( document ).ready(function() {
       };
 
       console.log('dynamic_pkgupdate', o, reqdata);
-      $.ajax({
-	dataType: "json",
-	url: dynamic_url("/api/package/modify-all", true),
-	contentType: 'application/json',
-	method: 'POST',
-        beforeSend: set_basic_authorization_header,
-	processData: false,
-	data: JSON.stringify(reqdata)
-      });
+      dynamic_send("/api/package/modify-all", reqdata);
     }
 
     $("#package_info").dialog({
@@ -166,7 +159,7 @@ $( document ).ready(function() {
         make_editbutton ( "pi_name", pkgi['name'], submit_mod_name );
         if ( mypkg_p ) {
             $( "#pi_delete_button" ).click( function (e) {
-                dynamic_pkgsend( "/jsonp/package/del", { } );
+                dynamic_send( "/api/package/del", { pkg: active_info['name'] } );
                 $(pkgi['dom_obj']).remove();
                 $("#package_info").dialog("close"); } );
             $( "#pi_delete_row" ).show(); }
@@ -514,7 +507,7 @@ $( document ).ready(function() {
         else {
             return jslink((down_p ? "▾" : "▴"),
                           function () {
-                              dynamic_send ( "/jsonp/package/curate",
+                              dynamic_send ( "/api/package/curate",
                                              { pkg: value['name'],
                                                ring: new_ring } );
                               value['ring'] = new_ring;
@@ -574,7 +567,7 @@ $( document ).ready(function() {
                 bstatus ); }
 
     function pollNotice(){
-        $.getJSON( dynamic_url("/jsonp/notice"), function( resp ) {
+        $.getJSON( dynamic_url("/api/notice"), function( resp ) {
             $("#server_notice").text(resp);
             // If there is no notice, update every 5 minutes
             if ( ! (/\S/.test(resp)) ) {
@@ -588,7 +581,7 @@ $( document ).ready(function() {
     pollNotice();
 
     var pkgdb = {};
-    $.getJSON( "/pkgs-all.json.gz", function( resp ) {
+    $.getJSON( "pkgs-all.json.gz", function( resp ) {
         pkgdb = resp;
 
         var names = object_keys(pkgdb);
@@ -626,39 +619,31 @@ $( document ).ready(function() {
         if ( c && p != cp ) {
             $( "#login_error" ).text( "You did not type in the same password." ); }
         else {
-          $.ajax({
-	    dataType: "json",
-	    url: dynamic_url("/api/authenticate", true),
-	    contentType: 'application/json',
-	    method: 'POST',
-	    processData: false,
-	    data: JSON.stringify({ email: e, passwd: p, code: c }),
-	    success: function( resp ) {
-              if ( resp == "emailed" ) {
-                $( "#login_confirm_row" ).show();
-                $( "#login_code_row" ).show();
-                $( "#login_error" ).text( "Check your email for an email code." );
-	      } else if ( resp == "wrong-code" ) {
-                $( "#login_code_text" ).val("");
-                $( "#login_error" ).text( "That is not the correct code." );
-	      } else if ( resp ) {
-                $( "#login_email_text" ).val("");
-                $( "#login_passwd_text" ).val("");
-                $( "#login_confirm_text" ).val("");
-                $( "#login_code_text" ).val("");
-                $( "#login_confirm_row" ).hide();
-                $( "#login_code_row" ).hide();
-                localStorage['email'] = e;
-                localStorage['passwd'] = p;
-                $( "#login" ).dialog( "close" );
-                initial_login();
-	      } else {
-                $( "#login_confirm_row" ).show();
-                $( "#login_code_row" ).show();
-                $( "#login_error" ).text("Incorrect password, please retry or check your email for a change password code." );
-	      }
+          dynamic_send("/api/authenticate", { email: e, passwd: p, code: c }, function (resp) {
+            if ( resp == "emailed" ) {
+              $( "#login_confirm_row" ).show();
+              $( "#login_code_row" ).show();
+              $( "#login_error" ).text( "Check your email for an email code." );
+	    } else if ( resp == "wrong-code" ) {
+              $( "#login_code_text" ).val("");
+              $( "#login_error" ).text( "That is not the correct code." );
+	    } else if ( resp ) {
+              $( "#login_email_text" ).val("");
+              $( "#login_passwd_text" ).val("");
+              $( "#login_confirm_text" ).val("");
+              $( "#login_code_text" ).val("");
+              $( "#login_confirm_row" ).hide();
+              $( "#login_code_row" ).hide();
+              localStorage['email'] = e;
+              localStorage['passwd'] = p;
+              $( "#login" ).dialog( "close" );
+              initial_login();
+	    } else {
+              $( "#login_confirm_row" ).show();
+              $( "#login_code_row" ).show();
+              $( "#login_error" ).text("Incorrect password, please retry or check your email for a change password code." );
 	    }
-	  });
+	  }, false);
 	}
     }
 
@@ -726,7 +711,7 @@ $( document ).ready(function() {
                          open_info(value); }),
                      " | ",
                      jslinki( "update", function (i) {
-                         dynamic_send ( "/jsonp/update", {} );
+                         dynamic_send ( "/api/update", {} );
                          i.text("updating..."); }),
                      " | ",
                      jslink( "logout", function () {
@@ -737,22 +722,18 @@ $( document ).ready(function() {
 
     function initial_login () {
       menu_logging();
-      $.ajax({
-	dataType: "json",
-	url: dynamic_url("/api/authenticate", true),
-	contentType: 'application/json',
-	method: 'POST',
-	processData: false,
-	data: JSON.stringify({ email: localStorage['email'], passwd: localStorage['passwd'], code: "" }),
-        success: function( resp ) {
-          if ( $.isPlainObject(resp) ) {
-            menu_loggedin( resp['curation'] ); }
-          else {
-            menu_logout();
-            console.log( "login failed" );
-	  }
+      dynamic_send("/api/authenticate", {
+        email: localStorage['email'],
+        passwd: localStorage['passwd'],
+        code: ""
+      }, function (resp) {
+        if ( $.isPlainObject(resp) ) {
+          menu_loggedin( resp['curation'] ); }
+        else {
+          menu_logout();
+          console.log( "login failed" );
 	}
-      });
+      }, false);
     }
 
     if ( localStorage['email'] && localStorage['passwd'] ) {
