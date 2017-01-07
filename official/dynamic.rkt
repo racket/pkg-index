@@ -218,14 +218,8 @@
 (define (wrap-with-cors-handler dispatcher)
   (lambda (req)
     (if (string-ci=? (bytes->string/latin-1 (request-method req)) "options")
-        (api/*/options req)
+        (response/output void #:headers *cors-headers*)
         (dispatcher req))))
-
-(define (api/*/options req)
-  ;; This is gross. OPTIONS handling should be able to be made global.
-  (response/output
-   (lambda (p) (void))
-   #:headers *cors-headers*))
 
 (define (api/authenticate req)
   (define raw (request-post-data/raw req))
