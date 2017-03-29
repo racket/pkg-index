@@ -1,23 +1,29 @@
 #lang racket/base
-(require web-server/http
+
+(provide go)
+
+(require file/sha1
+         json
+         net/sendmail
+         net/url
+         racket/file
+         racket/list
+         racket/match
+         racket/set
+         racket/string
+         version/utils
+         web-server/dispatch
+         web-server/http
+         web-server/http/basic-auth
+         web-server/servlet-env
+         (prefix-in bcrypt- bcrypt)
+         "../basic/main.rkt"
+         "build-update.rkt"
          "common.rkt"
-         "update.rkt"
          "notify.rkt"
          "static.rkt"
-         "build-update.rkt"
-         "jsonp.rkt"
-         web-server/servlet-env
-         racket/file
-         web-server/dispatch
-         racket/match
-         racket/string
-         net/url
-         racket/list
-         net/sendmail
-         "../basic/main.rkt"
-         file/sha1
-         (prefix-in bcrypt- bcrypt)
-         version/utils)
+         "update.rkt")
+
 (module+ test
   (require rackunit))
 
@@ -50,7 +56,14 @@
   (member u '("jay.mccarthy@gmail.com"
               "mflatt@cs.utah.edu"
               "samth@ccs.neu.edu"
-              "stamourv@racket-lang.org")))
+              "stamourv@racket-lang.org"
+              "tonygarnockjones@gmail.com")))
+
+;; This predicate means "Can `u` edit or delete arbitrary packages?"
+;; For now, it's the same set of people as can curate packages, but we
+;; can think about how we want to do this in future.
+(define (superuser? u)
+  (curation-administrator? u))
 
 (define (api/upload req)
   (define req-data (read (open-input-bytes (or (request-post-data/raw req) #""))))
@@ -91,347 +104,368 @@
      (signal-update! (hash-keys pis))
      (response/sexpr #t)]))
 
-(define (redirect-to-static req)
-  (redirect-to
-   (url->string
-    (struct-copy url (request-uri req)
-                 [scheme "http"]
-                 [host "pkgs.racket-lang.org"]
-                 [port 80]))))
-
-(define-syntax-rule (define-jsonp/auth (f . pat) . body)
-  (define-jsonp
-    (f
-     ['email email]
-     ['passwd passwd]
-     . pat)
-    (ensure-authenticate email passwd (λ () . body))))
+(define redirect-to-static
+  (get-config redirect-to-static-proc
+              (lambda (req)
+                (redirect-to
+                 (url->string
+                  (struct-copy url (request-uri req)
+                               [scheme (get-config redirect-to-static-scheme "http")]
+                               [host (get-config redirect-to-static-host "pkgs.racket-lang.org")]
+                               [port (get-config redirect-to-static-port 80)]))))))
 
 (define (salty str)
   (sha1 (open-input-string str)))
 
 (define current-user (make-parameter #f))
-(define (ensure-authenticate email passwd body-fun)
+(define (ensure-authenticate req body-fun)
+  (match (request->basic-credentials req)
+    [(cons email passwd)
+     (ensure-authenticate/email+passwd (bytes->string/utf-8 email)
+                                       (bytes->string/utf-8 passwd)
+                                       body-fun)]
+    [_
+     ;; TODO: things are structured awkwardly at the moment, but it'd
+     ;; be nice to have this generate 401 Authentication Required with
+     ;; a use of `make-basic-auth-header` to request credentials.
+     "authentication-required"]))
+
+(define (ensure-authenticate/email+passwd email passwd body-fun)
   (define passwd-path (build-path^ users.new-path email))
+  (cond [(not (file-exists? passwd-path))
+         "new-user"]
+        [(not (bcrypt-check (file->bytes passwd-path) (string->bytes/utf-8 passwd)))
+         "failed"]
+        [else
+         (parameterize ([current-user email]) (body-fun))]))
 
-  (define (authenticated!)
-    (parameterize ([current-user email])
-      (body-fun)))
-
-  (cond
-    [(not (file-exists? passwd-path))
-     "new-user"]
-    [(not (bcrypt-check (file->bytes passwd-path)
-                        (string->bytes/utf-8 passwd)))
-     "failed"]
-    [else
-     (authenticated!)]))
-
+;; email-codes: (Hashtable String String)
+;; Key: email address.
+;; Value: code sent out in email and required for registration of a new password.
 (define email-codes (make-hash))
-(define-jsonp
-  (jsonp/authenticate
-   ['email email]
-   ['passwd passwd]
-   ['code email-code])
+;; TODO: Expire codes.
 
-  (define passwd-path (build-path^ users.new-path email))
-  (define (generate-a-code email)
-    (define correct-email-code
-      (number->string (random (expt 10 8))))
+(define (generate-a-code! email)
+  (define correct-email-code
+    (bytes->hex-string
+     (with-input-from-file "/dev/urandom" (lambda () (read-bytes 12)))))
+  (hash-set! email-codes email correct-email-code)
+  correct-email-code)
 
-    (hash-set! email-codes email correct-email-code)
+(define (codes-equal? a b)
+  ;; Compare case-insensitively since people are weird and might
+  ;; type the thing in.
+  (string-ci=? a b))
 
-    correct-email-code)
-  (define (check-code-or true false)
-    (cond
-      [(and (not (string=? "" email-code))
-            (hash-ref email-codes email #f))
-       => (λ (correct-email-code)
-            (cond
-              [(equal? correct-email-code email-code)
-               (display-to-file (bcrypt-encode (string->bytes/utf-8 passwd))
-                                passwd-path
-                                #:exists 'replace)
+(define (check-code-or email passwd email-code k-true k-false)
+  (cond [(and (not (string=? "" email-code))
+              (hash-ref email-codes email #f))
+         => (λ (correct-email-code)
+              (cond
+                [(codes-equal? correct-email-code email-code)
+                 (define passwd-path (build-path^ users.new-path email))
+                 (display-to-file (bcrypt-encode (string->bytes/utf-8 passwd))
+                                  passwd-path
+                                  #:exists 'replace)
+                 (hash-remove! email-codes email)
+                 (k-true)]
+                [else
+                 "wrong-code"]))]
+        [else
+         (k-false)
+         #f]))
 
-               (hash-remove! email-codes email)
+(define (send-password-reset-email! email)
+  (send-mail-message
+   (get-config email-sender-address "pkg@racket-lang.org")
+   "Account password reset for Racket Package Catalog"
+   (list email)
+   empty empty
+   (list
+    "Someone tried to login with your email address for an account on the Racket Package Catalog, but failed."
+    "If this was you, please use this code to reset your password:"
+    ""
+    (generate-a-code! email)
+    ""
+    "This code will expire, so if it is not available, you'll have to try to again.")))
 
-               (true)]
-              [else
-               "wrong-code"]))]
-      [else
-       (false)
+(define (send-account-registration-email! email)
+  (send-mail-message
+   (get-config email-sender-address "pkg@racket-lang.org")
+   "Account confirmation for Racket Package Catalog"
+   (list email)
+   empty empty
+   (list
+    "Someone tried to register your email address for an account on the Racket Package Catalog."
+    "If you want to proceed, use this code:"
+    ""
+    (generate-a-code! email)
+    ""
+    "This code will expire, so if it is not available, you'll have to try to register again.")))
 
-       #f]))
+(define *cors-headers*
+  (list (header #"Access-Control-Allow-Origin" #"*")
+        (header #"Access-Control-Allow-Methods" #"POST, OPTIONS")
+        (header #"Access-Control-Allow-Headers" #"content-type, authorization")))
 
-  (match (ensure-authenticate email passwd (λ () #t))
-    ["failed"
-     (check-code-or
-      (λ () (hasheq 'curation (curation-administrator? email)))
-      (λ ()
-        (send-mail-message
-         "pkg@racket-lang.org"
-         "Account password reset for Racket Package Catalog"
-         (list email)
-         empty empty
-         (list
-          "Someone tried to login with your email address for an account on the Racket Package Catalog, but failed."
-          "If you this was you, please use this code to reset your password:"
-          ""
-          (generate-a-code email)
-          ""
-          "This code will expire, so if it is not available, you'll have to try to again."))))]
-    ["new-user"
-     (check-code-or
-      (λ () #t)
-      (λ ()
-        (send-mail-message
-         "pkg@racket-lang.org"
-         "Account confirmation for Racket Package Catalog"
-         (list email)
-         empty empty
-         (list
-          "Someone tried to register your email address for an account on the Racket Package Catalog."
-          "If you want to proceed, use this code:"
-          ""
-          (generate-a-code email)
-          ""
-          "This code will expire, so if it is not available, you'll have to try to register again."))))]
-    [#t
-     (hasheq 'curation (curation-administrator? email))]))
+(define (response/json o)
+  (response/output
+   (lambda (p)
+     (write-json o p))
+   #:headers *cors-headers*
+   #:mime-type #"application/json"))
 
-(define-jsonp/auth
-  (jsonp/package/modify
-   ['pkg pkg]
-   ['name mn-name]
-   ['description mn-desc]
-   ['source mn-source])
+(define (wrap-with-cors-handler dispatcher)
+  (lambda (req)
+    (if (string-ci=? (bytes->string/latin-1 (request-method req)) "options")
+        (response/output void #:headers *cors-headers*)
+        (dispatcher req))))
+
+(define (api/authenticate req)
+  (define raw (request-post-data/raw req))
+  (define req-data (read-json (open-input-bytes (or raw #""))))
+  (response/json
+   (and (hash? req-data)
+        (let ((email (hash-ref req-data 'email #f))
+              (passwd (hash-ref req-data 'passwd #f))
+              (code (hash-ref req-data 'code #f)))
+          (and (string? email)
+               (string? passwd)
+               (string? code)
+               (let ()
+                 (define (on-successful-authentication)
+                   (hasheq 'curation (curation-administrator? email)
+                           'superuser (superuser? email)))
+                 (match (ensure-authenticate/email+passwd email passwd (λ () #t))
+                   ["failed"
+                    (check-code-or email passwd code
+                                   (λ () (on-successful-authentication))
+                                   (λ () (send-password-reset-email! email)))]
+                   ["new-user"
+                    (check-code-or email passwd code
+                                   (λ () #t)
+                                   (λ () (send-account-registration-email! email)))]
+                   [#t
+                    (on-successful-authentication)])))))))
+
+(define (authenticated-json-post-rpc-service req handler)
+  (response/json
+   (ensure-authenticate
+    req
+    (lambda ()
+      (handler (read-json (open-input-bytes (or (request-post-data/raw req) #""))))))))
+
+(define-syntax-rule (define-authenticated-json-post-rpc-service function-name
+                      [(pat ...) body ...] ...)
+  (define (function-name req)
+    (authenticated-json-post-rpc-service
+     req
+     (match-lambda
+       [(hash-table pat ...) body ...] ...))))
+
+(define (api/package/modify-all req)
+  (authenticated-json-post-rpc-service
+   req
+   (lambda (req-data)
+     (and (hash? req-data)
+          (let ((pkg (hash-ref req-data 'pkg #f))
+                (name (hash-ref req-data 'name #f))
+                (description (hash-ref req-data 'description #f))
+                (source (hash-ref req-data 'source #f))
+                (tags (hash-ref req-data 'tags #f))
+                (authors (hash-ref req-data 'authors #f))
+                (versions (hash-ref req-data 'versions #f)))
+            (and (string? pkg)
+                 (string? name)
+                 (string? description)
+                 (string? source)
+                 (or (not tags) (and (list? tags) (andmap valid-tag? tags)))
+                 (or (not authors) (and (list? authors)
+                                        (pair? authors)
+                                        (andmap valid-author? authors)))
+                 (or (not versions) (and (list? versions)
+                                         (andmap valid-versions-list-entry? versions)))
+                 (save-package! #:old-name pkg
+                                #:new-name name
+                                #:description description
+                                #:source source
+                                #:tags tags
+                                #:authors authors
+                                #:versions versions)))))))
+
+(define (valid-versions-list-entry? entry)
+  (and (pair? entry)
+       (pair? (cdr entry))
+       (null? (cddr entry))
+       (valid-version? (car entry))
+       (string? (cadr entry))))
+
+;; Call ONLY within scope of an ensure-authenticate! (because depends on non-#f current-user))
+(define (save-package! #:old-name old-name
+                       #:new-name new-name
+                       #:description description
+                       #:source source
+                       #:tags tags0
+                       #:authors authors0
+                       #:versions versions0)
+  (when (not (current-user)) (error 'save-package! "No current-user"))
+  (define new-package? (equal? old-name ""))
+  (define (do-save! base-hash)
+    (let* ((h base-hash)
+           (h (cond [authors0
+                     (define authors1
+                       (if (superuser? (current-user))
+                           authors0
+                           (set->list (set-add (list->set authors0) (current-user)))))
+                     (hash-set h 'author (string-join authors1))]
+                    [new-package?
+                     (hash-set h 'author (current-user))]
+                    [else
+                     h]))
+           (h (if tags0 (hash-set h 'tags (tags-normalize tags0)) h))
+           (h (if versions0
+                  (hash-set h 'versions (for/hash [(v versions0)]
+                                          (values (car v)
+                                                  (hasheq 'source (cadr v) 'checksum ""))))
+                  h))
+           (h (hash-set h 'name new-name))
+           (h (hash-set h 'source source))
+           (h (hash-set h 'description description))
+           (h (hash-set h 'last-edit (current-seconds))))
+      (package-info-set! new-name h)))
   (cond
-    [(equal? pkg "")
+    [(not (andmap valid-author? (or authors0 '())))
+     (log! "package ~v/~v: some bad author" old-name new-name)
+     #f]
+    [(not (andmap valid-tag? (or tags0 '())))
+     (log! "package ~v/~v: some bad tag" old-name new-name)
+     #f]
+    [(not (andmap valid-versions-list-entry? (or versions0 '())))
+     (log! "package ~v/~v: some version list entry" old-name new-name)
+     #f]
+    [new-package?
      (cond
-      [(or (package-exists? mn-name)
-           (not (valid-name? mn-name)))
+      [(or (package-exists? new-name)
+           (not (valid-name? new-name)))
+       (log! "attempt to create package ~v failed" new-name)
        #f]
-       [else
-        (package-info-set! mn-name
-                           (hasheq 'name mn-name
-                                   'source mn-source
-                                   'author (current-user)
-                                   'description mn-desc
-                                   'last-edit (current-seconds)))
-        (signal-update! (list mn-name))
-        #t])]
+      [else
+       (log! "creating package ~v" new-name)
+       (do-save! (hasheq))
+       (signal-update! (list new-name))
+       #t])]
     [else
      (ensure-package-author
-      pkg
+      old-name
       (λ ()
         (cond
-          [(equal? mn-name pkg)
-           (package-info-set! pkg
-                              (hash-set* (package-info pkg)
-                                         'source mn-source
-                                         'description mn-desc
-                                         'last-edit (current-seconds)))
-           (signal-update! (list pkg))
+          [(equal? new-name old-name)
+           (log! "updating package ~v" old-name)
+           (do-save! (package-info old-name))
+           (signal-update! (list new-name))
            #t]
-          [(and (valid-name? mn-name)
-                (not (package-exists? mn-name)))
-           (package-info-set! mn-name
-                              (hash-set* (package-info pkg)
-                                         'name mn-name
-                                         'source mn-source
-                                         'description mn-desc
-                                         'last-edit (current-seconds)))
-           (package-remove! pkg)
-           (signal-update! (list mn-name))
+          [(and (valid-name? new-name)
+                (not (package-exists? new-name)))
+           (log! "updating and renaming package ~v to ~v" old-name new-name)
+           (do-save! (package-info old-name))
+           (package-remove! old-name)
+           (signal-update! (list new-name))
            #t]
           [else
+           (log! "attempt to rename package ~v to ~v failed" old-name new-name)
            #f])))]))
-
-(define-jsonp/auth
-  (jsonp/package/version/add
-   ['pkg pkg]
-   ['version version]
-   ['source source])
-  (ensure-package-author
-   pkg
-   (λ ()
-     (cond
-       [(valid-version? version)
-        (package-info-set!
-         pkg
-         (hash-update (package-info pkg) 'versions
-                      (λ (v-ht)
-                        (hash-set v-ht version
-                                  (hasheq 'source source
-                                          'checksum "")))
-                      hash))
-        (signal-update! (list pkg))
-        #t]
-       [else
-        #f]))))
-
-(define-jsonp/auth
-  (jsonp/package/version/del
-   ['pkg pkg]
-   ['version version])
-  (ensure-package-author
-   pkg
-   (λ ()
-     (cond
-       [(valid-version? version)
-        (package-info-set!
-         pkg
-         (hash-update (package-info pkg) 'versions
-                      (λ (v-ht)
-                        (hash-remove v-ht version))
-                      hash))
-        (signal-update! (list pkg))
-        #t]
-       [else
-        #f]))))
 
 (define (tags-normalize ts)
   (remove-duplicates (sort ts string-ci<?)))
-
-(define-jsonp/auth
-  (jsonp/package/tag/add
-   ['pkg pkg]
-   ['tag tag])
-  (cond
-    [(valid-tag? tag)
-     (define i (package-info pkg))
-     (package-info-set!
-      pkg
-      (hash-set i 'tags (tags-normalize (cons tag (package-ref i 'tags)))))
-     (signal-static! (list pkg))
-     #t]
-    [else
-     #f]))
-
-(define-jsonp/auth
-  (jsonp/package/tag/del
-   ['pkg pkg]
-   ['tag tag])
-  (ensure-package-author
-   pkg
-   (λ ()
-     (define i (package-info pkg))
-     (package-info-set!
-      pkg
-      (hash-set i 'tags
-                (remove tag
-                        (package-ref i 'tags))))
-     (signal-static! (list pkg))
-     #t)))
-
-(define-jsonp/auth
-  (jsonp/package/author/add
-   ['pkg pkg]
-   ['author author])
-  (ensure-package-author
-   pkg
-   (λ ()
-     (cond
-       [(valid-author? author)
-        (define i (package-info pkg))
-        (package-info-set!
-         pkg
-         (hash-set i 'author (format "~a ~a" (package-ref i 'author) author)))
-        (signal-static! (list pkg))
-        #t]
-       [else
-        #f]))))
 
 (define (ensure-package-author pkg f)
   (cond
     [(package-author? pkg (current-user))
      (f)]
+    [(superuser? (current-user))
+     (log! "user ~v invoked their superpowers to modify package ~v" (current-user) pkg)
+     (f)]
     [else
-     #f]))
-
-(define-jsonp/auth
-  (jsonp/package/author/del
-   ['pkg pkg]
-   ['author author])
-  (ensure-package-author
-   pkg
-   (λ ()
-     (cond
-       [(not (equal? (current-user) author))
-        (define i (package-info pkg))
-        (package-info-set!
-         pkg
-         (hash-set i 'author
-                   (string-join
-                    (remove author
-                            (author->list (package-ref i 'author))))))
-        (signal-static! (list pkg))
-        #t]
-       [else
-        #f]))))
-
-(define-jsonp/auth
-  (jsonp/package/del
-   ['pkg pkg])
-  (ensure-package-author
-   pkg
-   (λ ()
-     (package-remove! pkg)
-     (signal-static! empty)
-     #f)))
-
-(define-jsonp/auth
-  (jsonp/package/curate
-   ['pkg pkg]
-   ['ring ring-s])
-  (cond
-    [(curation-administrator? (current-user))
-     (define i (package-info pkg))
-     (define ring-n (string->number ring-s))
-     (package-info-set!
+     (log!
+      "attempt to modify package ~v by ~v failed because they are not an author of that package"
       pkg
-      (hash-set i 'ring (min 2 (max 0 ring-n))))
-     (signal-static! (list pkg))
-     #t]
-    [else
+      (current-user))
      #f]))
+
+(define-authenticated-json-post-rpc-service api/package/del
+  [(['pkg pkg])
+   (ensure-package-author
+    pkg
+    (λ ()
+      (package-remove! pkg)
+      (signal-static! empty)
+      #f))])
+
+(define-authenticated-json-post-rpc-service api/package/curate
+  [(['pkg pkg] ['ring ring])
+   (cond
+     [(curation-administrator? (current-user))
+      (define i (package-info pkg))
+      (package-info-set!
+       pkg
+       (hash-set i 'ring (min 2 (max 0 ring))))
+      (signal-static! (list pkg))
+      #t]
+     [else
+      #f])])
 
 (define (package-author? p u)
   (define i (package-info p))
-  (member u (author->list (package-ref i 'author))))
+  (cond
+    [(hash-has-key? i 'author)
+     ;; should almost always be the case (?!?!) but I'm adding this
+     ;; check because in the live database, the `compiler-doc` package
+     ;; is missing an author, so we need a fallback in order for
+     ;; `packages-of` to work.
+     (member u (author->list (package-ref i 'author)))]
+    [else
+     (log! "WARNING: Package ~a is missing an author field" p)
+     #f]))
 
 (define (packages-of u)
   (filter (λ (p) (package-author? p u)) (package-list)))
 
-(define-jsonp/auth
-  (jsonp/update)
-  (signal-update! (packages-of (current-user)))
-  #t)
+(define-authenticated-json-post-rpc-service api/update
+  [()
+   (define user-packages (packages-of (current-user)))
+   (log! "Packages of ~a: ~v" (current-user) user-packages)
+   (signal-update! user-packages)
+   #t])
 
-(define jsonp/notice
-  (make-jsonp-responder (λ (args) (file->string notice-path))))
+(define (api/notice req)
+  (response/json (file->string notice-path)))
 
 (define-values (main-dispatch main-url)
   (dispatch-rules
-   [("jsonp" "authenticate") jsonp/authenticate]
-   [("jsonp" "update") jsonp/update]
-   [("jsonp" "package" "del") jsonp/package/del]
-   [("jsonp" "package" "modify") jsonp/package/modify]
-   [("jsonp" "package" "version" "add") jsonp/package/version/add]
-   [("jsonp" "package" "version" "del") jsonp/package/version/del]
-   [("jsonp" "package" "tag" "add") jsonp/package/tag/add]
-   [("jsonp" "package" "tag" "del") jsonp/package/tag/del]
-   [("jsonp" "package" "author" "add") jsonp/package/author/add]
-   [("jsonp" "package" "author" "del") jsonp/package/author/del]
-   [("jsonp" "package" "curate") jsonp/package/curate]
+   ;;---------------------------------------------------------------------------
+   ;; User management
+   [("api" "authenticate") #:method "post" api/authenticate]
+   ;;---------------------------------------------------------------------------
+   ;; Wholesale package update of one kind or another
    [("api" "upload") #:method "post" api/upload]
-   [("jsonp" "notice") jsonp/notice]
+   [("api" "update") #:method "post" api/update]
+   ;;---------------------------------------------------------------------------
+   ;; Individual package management
+   [("api" "package" "del") #:method "post" api/package/del]
+   [("api" "package" "modify-all") #:method "post" api/package/modify-all]
+   [("api" "package" "curate") #:method "post" api/package/curate]
+   ;;---------------------------------------------------------------------------
+   ;; Retrieve backend status message (no longer needed?)
+   [("api" "notice") api/notice]
+   ;;---------------------------------------------------------------------------
+   ;; Static resources
    [else redirect-to-static]))
 
 (define-syntax-rule (forever . body)
   (let loop () (begin . body) (loop)))
 
-(define (go port)
+(define (go)
+  (define port (get-config port 9004))
   (log! "launching on port ~v" port)
   (signal-static! empty)
   (thread
@@ -444,7 +478,7 @@
       (log! "update-t: sleeping for 1 hour")
       (sleep (* 1 60 60)))))
   (serve/servlet
-   main-dispatch
+   (wrap-with-cors-handler main-dispatch)
    #:command-line? #t
    ;; xxx I am getting strange behavior on some connections... maybe
    ;; this will help?
@@ -458,4 +492,4 @@
    #:port port))
 
 (module+ main
-  (go 9004))
+  (go))

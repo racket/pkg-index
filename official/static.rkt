@@ -327,7 +327,7 @@
       (sort (map package-info all-pkg-list)
             >
             #:key (λ (i) (hash-ref i 'last-updated))))
-    (define top (hash-ref (first ps) 'last-updated))
+    (define top (hash-ref (if (pair? ps) (first ps) (hash)) 'last-updated 0))
     (define (atom-format-time t)
       (format "~aZ" (format-time t)))
     (response/xexpr
@@ -336,16 +336,22 @@
        ([xmlns "http://www.w3.org/2005/Atom"])
        (title ,(cdata #f #f (format "<![CDATA[~a]]>"
                                     "Racket Package Updates")))
-       (link ([href "https://pkg.racket-lang.org/rss"]
+       (link ([href ,(get-config atom-self-link
+                                 ;; TODO: is the following the correct URL to default to?
+                                 "https://pkg.racket-lang.org/rss")]
               [rel "self"]))
-       (link ([href "https://pkg.racket-lang.org/"]))
+       (link ([href ,(get-config atom-link "https://pkg.racket-lang.org/")]))
        (updated ,(atom-format-time top))
-       (id "https://pkg.racket-lang.org/")
+       (id ,(get-config atom-id "https://pkg.racket-lang.org/"))
        ,@(for/list ([i (in-list ps)])
            (define p (hash-ref i 'name))
            (define this-url
-             (format "http://pkg.racket-lang.org/#[~a]"
-                     p))
+             ((get-config atom-compute-package-url
+                          (lambda (p)
+                            (format (get-config atom-package-url-format-string
+                                                "http://pkg.racket-lang.org/#[~a]")
+                                    p)))
+              p))
            (define lu (atom-format-time (hash-ref i 'last-updated)))
            (define a 
              (match (author->list (hash-ref i 'author))
@@ -393,7 +399,8 @@
             ((response-output (main-dispatch (url->request url)))
              (current-output-port)))))
     (unless (and (file-exists? p)
-                 (bytes=? bs (file->bytes p)))
+                 (bytes=? bs (file->bytes p))
+                 (file-exists? (path-add-suffix p #".json")))
       (log! "static: caching ~v" p)
       (with-output-to-file p
         #:exists 'replace
@@ -445,6 +452,7 @@
   (let ()
     (log! "static: removing deleted files")
     (define pkg-path (build-path static-path "pkg"))
+    (when (not (directory-exists? pkg-path)) (make-directory pkg-path))
     (for ([f (in-list (directory-list pkg-path))]
           #:unless (regexp-match #"json$" (path->string f))
           #:unless (member (path->string f) all-pkg-list))

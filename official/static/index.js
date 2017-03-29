@@ -2,8 +2,9 @@ var build_host = "http://pkg-build.racket-lang.org/";
 var dynamic_host = "pkgd.racket-lang.org";
 var dynamic_port = 443;
 
-function dynamic_url ( u ) {
-    return "https://" + dynamic_host + ":" + dynamic_port + u + "?callback=?"; }
+function dynamic_url ( u, without_callback ) {
+  return "https://" + dynamic_host + ":" + dynamic_port + u + (without_callback ? "" : "?callback=?");
+}
 
 function me () {
     return localStorage['email']; }
@@ -22,15 +23,51 @@ $( document ).ready(function() {
                            click: function () { clickf(i); } } );
         return i.text(texts); }
 
-    function dynamic_send ( u, o ) {
-        o['email'] = localStorage['email'];
-        o['passwd'] = localStorage['passwd'];
-        // xxx do a poll
-        $.getJSON( dynamic_url(u), o, function (r) { return; } ); }
+    function set_basic_authorization_header(xhr) {
+      var username = localStorage['email'];
+      var passwd = localStorage['passwd'];
+      xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + passwd));
+    }
 
-    function dynamic_pkgsend ( u, o ) {
-        o['pkg'] = active_info['name'];
-        dynamic_send ( u, o ); }
+    function dynamic_send ( u, o, maybe_success, maybe_authenticatep ) {
+      var ajax_params = {
+	dataType: "json",
+	url: dynamic_url(u, true),
+        contentType: 'application/json',
+        method: 'POST',
+        processData: false,
+	data: JSON.stringify(o)
+      };
+      if ((typeof maybe_authenticatep === 'undefined') || maybe_authenticatep) {
+        ajax_params.beforeSend = set_basic_authorization_header;
+      }
+      if (maybe_success) {
+        ajax_params.success = maybe_success;
+      }
+      $.ajax(ajax_params);
+    }
+
+    function dynamic_pkgupdate(o, maybe_old_name) {
+      var other_versions = []
+      for (var v in o.versions) {
+        if (v !== 'default') {
+          other_versions.push([v, o.versions[v].source]);
+        }
+      }
+
+      var reqdata = {
+        pkg: typeof maybe_old_name === 'undefined' ? o.name : maybe_old_name,
+        name: o.name,
+        description: o.description,
+        source: o.versions['default'].source,
+        tags: o.tags,
+        authors: o.authors,
+        versions: other_versions
+      };
+
+      console.log('dynamic_pkgupdate', o, reqdata);
+      dynamic_send("/api/package/modify-all", reqdata);
+    }
 
     $("#package_info").dialog({
         beforeClose: function ( event, ui ) { evaluate_search(); },
@@ -122,7 +159,7 @@ $( document ).ready(function() {
         make_editbutton ( "pi_name", pkgi['name'], submit_mod_name );
         if ( mypkg_p ) {
             $( "#pi_delete_button" ).click( function (e) {
-                dynamic_pkgsend( "/jsonp/package/del", { } );
+                dynamic_send( "/api/package/del", { pkg: active_info['name'] } );
                 $(pkgi['dom_obj']).remove();
                 $("#package_info").dialog("close"); } );
             $( "#pi_delete_row" ).show(); }
@@ -228,12 +265,12 @@ $( document ).ready(function() {
         active_info = pkgi; };
 
     function submit_remove_tag ( tag ) {
-        dynamic_pkgsend( "/jsonp/package/tag/del", { tag: tag } );
-
         var tag_index = $.inArray(tag, active_info['tags']);
         active_info['tags'].splice( tag_index, 1 );
         delete active_info['search-terms'][ tag ];
         evaluate_search();
+
+        dynamic_pkgupdate(active_info);
 
         update_info( active_info ); }
     function submit_add_tag () {
@@ -241,11 +278,11 @@ $( document ).ready(function() {
         var tag = it.val();
         it.val("");
 
-        dynamic_pkgsend( "/jsonp/package/tag/add", { tag: tag } );
-
         active_info['tags'].push( tag );
         active_info['search-terms'][ tag ] = true;
         evaluate_search();
+
+        dynamic_pkgupdate(active_info);
 
         update_info( active_info ); }
     $( "#pi_add_tag_text" ).keypress( function (e) {
@@ -253,12 +290,12 @@ $( document ).ready(function() {
     $( "#pi_add_tag_button" ).click( function (e) { submit_add_tag (); } );
 
     function submit_remove_author ( author ) {
-        dynamic_pkgsend( "/jsonp/package/author/del", { author: author } );
-
         var author_index = $.inArray(author, active_info['authors']);
         active_info['authors'].splice( author_index, 1 );
         delete active_info['search-terms'][ "author:" + author ];
         evaluate_search();
+
+        dynamic_pkgupdate(active_info);
 
         update_info( active_info ); }
     function submit_add_author () {
@@ -266,11 +303,11 @@ $( document ).ready(function() {
         var author = it.val();
         it.val("");
 
-        dynamic_pkgsend( "/jsonp/package/author/add", { author: author } );
-
         active_info['authors'].push( author );
         active_info['search-terms'][ "author:" + author ] = true;
         evaluate_search();
+
+        dynamic_pkgupdate(active_info);
 
         update_info( active_info ); }
     $( "#pi_add_author_text" ).keypress( function (e) {
@@ -278,9 +315,9 @@ $( document ).ready(function() {
     $( "#pi_add_author_button" ).click( function (e) { submit_add_author (); } );
 
     function submit_remove_version ( version ) {
-        dynamic_pkgsend( "/jsonp/package/version/del", { version: version } );
-
         delete active_info['versions'][version];
+
+        dynamic_pkgupdate(active_info);
 
         update_info( active_info ); }
     function submit_add_version () {
@@ -291,9 +328,9 @@ $( document ).ready(function() {
         var source = it.val();
         it.val("");
 
-        dynamic_pkgsend( "/jsonp/package/version/add", { version: version, source: source } );
-
         active_info['versions'][version] = { source: source, checksum: "" };
+
+        dynamic_pkgupdate(active_info);
 
         update_info( active_info ); }
     $( "#pi_add_version_source_text" ).keypress( function (e) {
@@ -301,14 +338,13 @@ $( document ).ready(function() {
     $( "#pi_add_version_button" ).click( function (e) { submit_add_version (); } );
 
     function submit_mod ( new_name, new_description, new_source ) {
-        dynamic_pkgsend( "/jsonp/package/modify",
-                         { name: new_name,
-                           description: new_description,
-                           source: new_source } );
+        var old_name = active_info['name'];
 
         active_info['name'] = new_name;
         active_info['description'] = new_description;
         active_info['versions']['default']['source'] = new_source;
+
+        dynamic_pkgupdate(active_info, old_name);
 
         update_info( active_info ); }
     function submit_mod_name ( newv ) {
@@ -469,9 +505,9 @@ $( document ).ready(function() {
         if ( new_ring == old_ring ) {
             return ""; }
         else {
-            return jslink((down_p ? "&blacktriangledown;" : "&blacktriangle;"),
+            return jslink((down_p ? "▾" : "▴"),
                           function () {
-                              dynamic_send ( "/jsonp/package/curate",
+                              dynamic_send ( "/api/package/curate",
                                              { pkg: value['name'],
                                                ring: new_ring } );
                               value['ring'] = new_ring;
@@ -531,7 +567,7 @@ $( document ).ready(function() {
                 bstatus ); }
 
     function pollNotice(){
-        $.getJSON( dynamic_url("/jsonp/notice"), function( resp ) {
+        $.getJSON( dynamic_url("/api/notice"), function( resp ) {
             $("#server_notice").text(resp);
             // If there is no notice, update every 5 minutes
             if ( ! (/\S/.test(resp)) ) {
@@ -545,7 +581,7 @@ $( document ).ready(function() {
     pollNotice();
 
     var pkgdb = {};
-    $.getJSON( "/pkgs-all.json.gz", function( resp ) {
+    $.getJSON( "pkgs-all.json.gz", function( resp ) {
         pkgdb = resp;
 
         var names = object_keys(pkgdb);
@@ -583,37 +619,34 @@ $( document ).ready(function() {
         if ( c && p != cp ) {
             $( "#login_error" ).text( "You did not type in the same password." ); }
         else {
-            $.getJSON( dynamic_url("/jsonp/authenticate"),
-                       { email: e, passwd: p, code: c },
-                       function( resp ) {
-                           if ( resp == "emailed" ) {
-                               $( "#login_confirm_row" ).show();
-                               $( "#login_code_row" ).show();
+          dynamic_send("/api/authenticate", { email: e, passwd: p, code: c }, function (resp) {
+            if ( resp == "emailed" ) {
+              $( "#login_confirm_row" ).show();
+              $( "#login_code_row" ).show();
+              $( "#login_error" ).text( "Check your email for an email code." );
+	    } else if ( resp == "wrong-code" ) {
+              $( "#login_code_text" ).val("");
+              $( "#login_error" ).text( "That is not the correct code." );
+	    } else if ( resp ) {
+              $( "#login_email_text" ).val("");
+              $( "#login_passwd_text" ).val("");
+              $( "#login_confirm_text" ).val("");
+              $( "#login_code_text" ).val("");
+              $( "#login_confirm_row" ).hide();
+              $( "#login_code_row" ).hide();
+              localStorage['email'] = e;
+              localStorage['passwd'] = p;
+              $( "#login" ).dialog( "close" );
+              initial_login();
+	    } else {
+              $( "#login_confirm_row" ).show();
+              $( "#login_code_row" ).show();
+              $( "#login_error" ).text("Incorrect password, please retry or check your email for a change password code." );
+	    }
+	  }, false);
+	}
+    }
 
-                               $( "#login_error" ).text( "Check your email for an email code." ); }
-                           else if ( resp == "wrong-code" ) {
-                               $( "#login_code_text" ).val("");
-                               $( "#login_error" ).text( "That is not the correct code." ); }
-                           else if ( resp ) {
-                               $( "#login_email_text" ).val("");
-                               $( "#login_passwd_text" ).val("");
-                               $( "#login_confirm_text" ).val("");
-                               $( "#login_code_text" ).val("");
-
-                               $( "#login_confirm_row" ).hide();
-                               $( "#login_code_row" ).hide();
-
-                               localStorage['email'] = e;
-                               localStorage['passwd'] = p;
-
-                               $( "#login" ).dialog( "close" );
-
-                               initial_login(); }
-                           else {
-                               $( "#login_confirm_row" ).show();
-                               $( "#login_code_row" ).show();
-
-                               $( "#login_error" ).text( "Incorrect password, please retry or check your email for a change password code." ); }; } ); } }
     $( "#login_passwd_text" ).keypress( function (e) {
         if (e.which == 13) { login_submit (); } } );
     $( "#login_code_text" ).keypress( function (e) {
@@ -678,7 +711,7 @@ $( document ).ready(function() {
                          open_info(value); }),
                      " | ",
                      jslinki( "update", function (i) {
-                         dynamic_send ( "/jsonp/update", {} );
+                         dynamic_send ( "/api/update", {} );
                          i.text("updating..."); }),
                      " | ",
                      jslink( "logout", function () {
@@ -688,18 +721,24 @@ $( document ).ready(function() {
                          menu_logout (); }) ); }
 
     function initial_login () {
-        menu_logging();
-        $.getJSON( dynamic_url("/jsonp/authenticate"),
-                   { email: localStorage['email'], passwd: localStorage['passwd'], code: "" },
-                   function( resp ) {
-                       if ( $.isPlainObject(resp) ) {
-                           menu_loggedin( resp['curation'] ); }
-                       else {
-                           menu_logout();
-                           console.log( "login failed" ); } } ); }
-
+      menu_logging();
+      dynamic_send("/api/authenticate", {
+        email: localStorage['email'],
+        passwd: localStorage['passwd'],
+        code: ""
+      }, function (resp) {
+        if ( $.isPlainObject(resp) ) {
+          menu_loggedin( resp['curation'] ); }
+        else {
+          menu_logout();
+          console.log( "login failed" );
+	}
+      }, false);
+    }
 
     if ( localStorage['email'] && localStorage['passwd'] ) {
         initial_login();
     } else {
-        menu_logout (); } });
+      menu_logout ();
+    }
+});
