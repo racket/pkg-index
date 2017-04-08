@@ -156,7 +156,7 @@
                                [else (build-path (find-system-path 'home-dir) ".s3cfg-plt")])))
 (define s3-bucket (get-config s3-bucket
                               (or (getenv "S3_BUCKET")
-                                  "pkgs.racket-lang.org")))
+                                  "pkgo.racket-lang.org")))
 
 (define s3cmd-path (get-config s3cmd-path
                                (cond
