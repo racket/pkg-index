@@ -177,7 +177,7 @@
 
 (define (send-password-reset-email! email)
   (send-mail-message
-   (get-config email-sender-address "pkg@racket-lang.org")
+   (get-config email-sender-address "pkgs@racket-lang.org")
    "Account password reset for Racket Package Catalog"
    (list email)
    empty empty
@@ -191,7 +191,7 @@
 
 (define (send-account-registration-email! email)
   (send-mail-message
-   (get-config email-sender-address "pkg@racket-lang.org")
+   (get-config email-sender-address "pkgs@racket-lang.org")
    "Account confirmation for Racket Package Catalog"
    (list email)
    empty empty

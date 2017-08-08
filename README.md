@@ -77,7 +77,7 @@ Configuration keys used by `dynamic.rkt`:
    `redirect-to-static-port`. These, in turn, default to `"http"`,
    `"pkgs.racket-lang.org"` and `80`, respectively.
 
- - `email-sender-address` - string; defaults to `pkg@racket-lang.org`.
+ - `email-sender-address` - string; defaults to `pkgs@racket-lang.org`.
    Used as the "from" address when sending authentication emails on
    behalf of the server.
 
