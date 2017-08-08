@@ -99,6 +99,7 @@
                 'versions versions-ht
                 'ring (hash-ref ht 'ring 2)
                 'dependencies (hash-ref ht 'dependencies empty)
+                'implies (hash-ref ht 'implies empty)
                 'modules (hash-ref ht 'modules empty)
                 'conflicts
                 (hash-ref ht 'conflicts

@@ -3,6 +3,7 @@
          racket/function
          racket/system
          racket/package
+         racket/match
          pkg/private/stage
          (prefix-in pkg: pkg/lib)
          "common.rkt"
@@ -108,15 +109,23 @@
 
 (define (update-from-content i)
   (log! "\tgetting package content for ~v" (hash-ref i 'name))
-  (define-values (checksum module-paths dependencies)
-    (pkg:get-pkg-content (pkg:pkg-desc (hash-ref i 'source)
-                                       #f
-                                       (hash-ref i 'name)
-                                       (hash-ref i 'checksum)
-                                       #f)))
+  (match-define-values
+   (checksum module-paths (cons dependencies implies))
+   (pkg:get-pkg-content
+    (pkg:pkg-desc (hash-ref i 'source)
+                  #f
+                  (hash-ref i 'name)
+                  (hash-ref i 'checksum)
+                  #f)
+    #:extract-info
+    (λ (get-info)
+      (cons (pkg:extract-pkg-dependencies get-info)
+            (get-info 'implies (λ () empty))))))
+                          
   (package-begin
    (define* i (hash-set i 'modules module-paths))
    (define* i (hash-set i 'dependencies dependencies))
+   (define* i (hash-set i 'implies implies))
    i))
 
 (define (do-update! pkgs)
