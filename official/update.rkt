@@ -96,8 +96,9 @@
            [(not new-checksum)
             i]
            [(and (equal? new-checksum old-checksum)
-                 ;; update if 'modules was not present:
-                 (hash-ref i 'modules #f))
+                 ;; update if 'modules or 'implies was not present:
+                 (and (hash-ref i 'modules #f)
+                      (hash-ref i 'implies #f)))
             i]
            [else
             (hash-set (update-from-content i) 'last-updated now)]))
