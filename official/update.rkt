@@ -101,7 +101,10 @@
                       (hash-ref i 'implies #f)))
             i]
            [else
-            (hash-set (update-from-content i) 'last-updated now)]))
+            (define next-i (update-from-content i))
+            (if (equal? new-checksum old-checksum)
+              next-i
+              (hash-set next-i 'last-updated now))]))
        (define* i
          (hash-set i 'checksum-error #f))
        (log! "\twriting with checksum ~v" (hash-ref i 'checksum))
