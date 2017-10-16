@@ -9,7 +9,7 @@
             'root (build-path var "pkg-index")
             'email-sender-address "The Racket Package Server <pkgs@racket-lang.org>"
 
-            'atom-package-url-format-string "http://pkgo.racket-lang.org/#[~a]"
+            'atom-package-url-format-string "https://pkgs.racket-lang.org/package/~a"
             's3-bucket "pkgo.racket-lang.org"
 
             ;; 'atom-package-url-format-string "http://pkg.racket-lang.org/package/~a"
