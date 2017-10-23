@@ -123,7 +123,9 @@
                   #f)
     #:extract-info
     (λ (get-info)
-      (cons (pkg:extract-pkg-dependencies get-info)
+      (cons (if get-info
+              (pkg:extract-pkg-dependencies get-info)
+              empty)
             (get-info 'implies (λ () empty))))))
                           
   (package-begin
