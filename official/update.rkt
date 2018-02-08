@@ -123,10 +123,10 @@
                   #f)
     #:extract-info
     (λ (get-info)
-      (cons (if get-info
-              (pkg:extract-pkg-dependencies get-info)
-              empty)
-            (get-info 'implies (λ () empty))))))
+      (if get-info
+        (cons (pkg:extract-pkg-dependencies get-info)
+              (get-info 'implies (λ () empty)))
+        (cons empty empty)))))
                           
   (package-begin
    (define* i (hash-set i 'modules module-paths))
