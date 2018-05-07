@@ -5,4 +5,5 @@
 (define test-omit-paths 'all)
 (define test-responsibles '((all jay)))
 (define deps '("racket-lib"
+               "base"
                "bcrypt"))
