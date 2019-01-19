@@ -331,6 +331,8 @@
            (h (hash-set h 'name new-name))
            (h (hash-set h 'source source))
            (h (hash-set h 'description description))
+           (h (if (hash-has-key? h 'date-added) h
+                  (hash-set h 'date-added (current-seconds))))
            (h (hash-set h 'last-edit (current-seconds))))
       (package-info-set! new-name h)))
   (cond
