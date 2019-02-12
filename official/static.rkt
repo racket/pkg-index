@@ -63,7 +63,11 @@
   (define all-pkg-list (package-list))
   (define these-pkg-list pkgs)
   (define pkg-ht (make-hash))
-  (define build-summary (file->value* SUMMARY-PATH (hash)))
+  (define build-summary
+    (let* ([bs (file->value* SUMMARY-PATH #f)]
+           [bs (and (hash? bs) bs)]
+           [bs (or bs (hash))])
+      bs))
 
   (for ([pkg-name (in-list all-pkg-list)])
     (log! "static: building ht for ~v" pkg-name)
