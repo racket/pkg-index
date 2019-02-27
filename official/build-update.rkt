@@ -38,6 +38,7 @@
     (_0 head-headers _1)
     (http-sendrecv
      SUMMARY-HOST SUMMARY-URL
+     #:ssl? #t
      #:method #"HEAD"))
   (define head-version
     (extract-tag head-headers))
@@ -48,6 +49,7 @@
       (_2 get-headers get-ip)
       (http-sendrecv
        SUMMARY-HOST SUMMARY-URL
+       #:ssl? #t
        #:method #"GET"))
     (define get-version
       (extract-tag get-headers))
