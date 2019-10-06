@@ -36,6 +36,8 @@
     (symbol->string s)]
    [(? keyword? s)
     (hasheq 'kw (keyword->string s))]
+   [(? regexp? r)
+    (hasheq 'regexp (object-name r))]
    [x
     (error 'convert-to-json "~e" x)]))
 (define convert-to-json-key
