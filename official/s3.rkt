@@ -5,6 +5,7 @@
          racket/system
          file/gzip
          racket/match
+         s3-sync
          "common.rkt"
          "notify.rkt")
 
@@ -16,29 +17,18 @@
   (delete-file (format "~a/pkgs-all.json" static-path))
 
   (notify! "update upload in progress: there may be inconsistencies below")
-  (log! "upload: uploading gzips")
-  (system* s3cmd-path
-           "-c" s3-config
-           "sync"
-           "-v"
-           "-m" "application/javascript"
-           "--acl-public"
-           "--add-header" "Content-Encoding:gzip"
-           "--delete-removed"
-           (format "~a/pkgs-all.json.gz" static-path)
-           (format "s3://~a/pkgs-all.json.gz" s3-bucket))
-
-  (log! "upload: uploading everything else")
-  (system* s3cmd-path
-           "-c" s3-config
-           "sync"
-           "-v"
-           "-M"
-           "--no-mime-magic"
-           "--acl-public"
-           "--delete-removed"
-           (format "~a/" static-path)
-           (format "s3://~a/" s3-bucket))
+  (log! "upload: uploading everything")
+  (s3-sync static-path
+           s3-bucket
+           #f
+           #:jobs 32
+           #:upload? #t
+           #:delete? #t
+           #:acl "public-read"
+           #:upload-metadata-mapping
+           (hash "pkgs-all.json.gz"
+                 (hash 'Content-Type "application/javascript"
+                       'Content-Encoding "gzip")))
   (log! "upload: done with upload")
   (notify! "")
 

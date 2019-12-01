@@ -26,10 +26,15 @@
 (define users.new-path (get-config users.new-path (build-path root "users.new")))
 (make-directory* users.new-path)
 
+;; Since package downloads don't normally use the GitHub API anymore,
+;; allow the GitHub options to be #f and make the default load strings
+;; only if default files exist
 (let ((check+load-file (lambda (filename)
                          (if (file-exists? filename)
                              (file->string filename)
-                             (raise-user-error 'pkg-index "Cannot find file ~a" filename)))))
+                             (begin
+                               #;(raise-user-error 'pkg-index "Cannot find file ~a" filename)
+                               #f)))))
   (github-client_id (get-config github-client_id
                                 (check+load-file (build-path root "client_id"))))
   (github-client_secret (get-config github-client_secret
@@ -150,18 +155,11 @@
                                             x))])
            (t)))))))
 
-(define s3-config (get-config s3-config
-                              (cond
-                               [(getenv "S3CFG_PLT") => string->path]
-                               [else (build-path (find-system-path 'home-dir) ".s3cfg-plt")])))
 (define s3-bucket (get-config s3-bucket
                               (or (getenv "S3_BUCKET")
-                                  "pkgo.racket-lang.org")))
-
-(define s3cmd-path (get-config s3cmd-path
-                               (cond
-                                [(getenv "S3CMD") => string->path]
-                                [else (find-executable-path "s3cmd")])))
+                                  ;; To avoid accidentally changing the live data,
+                                  ;; we use "test" (instead of "pkgo") by default
+                                  "test.racket-lang.org")))
 
 (provide (all-defined-out))
 (provide (all-from-out "config.rkt"))
