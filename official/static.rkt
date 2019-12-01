@@ -13,6 +13,7 @@
          racket/list
          racket/path
          racket/promise
+         plt-service-monitor/beat
          "../basic/main.rkt"
          "common.rkt"
          "notify.rkt"
@@ -40,6 +41,7 @@
     (hasheq 'regexp (object-name r))]
    [x
     (error 'convert-to-json "~e" x)]))
+
 (define convert-to-json-key
   (match-lambda
    [(? string? s)
@@ -475,7 +477,8 @@
   (define changed-pkgs (generate-static pkgs))
   (signal-s3! changed-pkgs))
 (define (run-static! pkgs)
-  (run! do-static pkgs))
+  (run! do-static pkgs)
+  (heartbeat (get-config beat-upload-task-name "pkgd-upload")))
 (define run-sema (make-semaphore 1))
 (define (signal-static! pkgs)
   (safe-run! run-sema (λ () (run-static! pkgs))))

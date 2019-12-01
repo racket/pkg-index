@@ -72,6 +72,9 @@ Common configuration keys:
    `test.racket-lang.org`. AWS credentials are found by the `s3`
    package, typically from `~/.aws-keys`.
 
+ - `beat-s3-bucket` - string or #f; defaults to #f. A bucket name for
+   regsitering heartbeats, or #f to disable heartbeats.
+
 Configuration keys used by `dynamic.rkt`:
 
  - `redirect-to-static-proc` - function from HTTP request to HTTP
@@ -92,6 +95,9 @@ Configuration keys used by `dynamic.rkt`:
  - `ssl?` - boolean; ; defaults to `#t`. A true value serves HTTPS and
     requires *root*/`server-cert.pem` and *root*/`private-key.pem`.
 
+ - `beat-update-task-name` - string; defaults to "pkgd-update". A task
+   name for heartbeats after updating information for all packages.
+
 Configuration keys used by `static.rkt`:
 
  - `atom-self-link` - string; defaults to
@@ -110,3 +116,6 @@ Configuration keys used by `static.rkt`:
    package name and a format template-string from
    `atom-package-url-format-string`, which in turn defaults to
    `http://pkg.racket-lang.org/#[~a]`.
+
+ - `beat-upload-task-name` - string; defaults to "pkgd-upload". A task
+   name for heartbeats after uploading information for all packages.

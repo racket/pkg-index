@@ -148,7 +148,7 @@
 (define (run-update! pkgs beat?)
   (run! do-update! pkgs)
   (when beat?
-    (system* (path->string (build-path src "beat-update.sh")))))
+    (heartbeat (get-config beat-update-task-name "pkgd-update"))))
 (define run-sema (make-semaphore 1))
 (define (signal-update!* pkgs beat?)
   (safe-run! run-sema (λ () (run-update! pkgs beat?))))
