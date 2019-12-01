@@ -8,6 +8,7 @@
          racket/string
          web-server/http/id-cookie
          pkg/private/stage
+         plt-service-monitor/beat
          "config.rkt")
 
 ;; This f o f^-1 is applied because it throws an error if file is not
@@ -160,6 +161,11 @@
                                   ;; To avoid accidentally changing the live data,
                                   ;; we use "test" (instead of "pkgo") by default
                                   "test.racket-lang.org")))
+
+(define beat-s3-bucket (get-config beat-s3-bucket #f))
+(define (heartbeat task)
+  (when beat-s3-bucket
+    (beat beat-s3-bucket task)))
 
 (provide (all-defined-out))
 (provide (all-from-out "config.rkt"))
