@@ -468,6 +468,7 @@
 
 (define (go)
   (define port (get-config port 9004))
+  (define ssl? (get-config ssl? #t))
   (log! "launching on port ~v" port)
   (signal-static! empty)
   (thread
@@ -486,9 +487,9 @@
    ;; this will help?
    #:connection-close? #t
    #:listen-ip #f
-   #:ssl? #t
-   #:ssl-cert (build-path root "server-cert.pem")
-   #:ssl-key (build-path root "private-key.pem")
+   #:ssl? ssl?
+   #:ssl-cert (and ssl? (build-path root "server-cert.pem"))
+   #:ssl-key (and ssl? (build-path root "private-key.pem"))
    #:extra-files-paths empty
    #:servlet-regexp #rx""
    #:port port))

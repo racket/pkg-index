@@ -6,4 +6,5 @@
 (define test-responsibles '((all jay)))
 (define deps '("racket-lib"
                "base"
-               "bcrypt"))
+               "bcrypt"
+               "s3-sync"))
