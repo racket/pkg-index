@@ -12,6 +12,8 @@
             'atom-package-url-format-string "https://pkgs.racket-lang.org/package/~a"
             's3-bucket "pkgo.racket-lang.org"
 
+            'beat-s3-bucket "heartbeat.racket-lang.org"
+
             ;; 'atom-package-url-format-string "http://pkg.racket-lang.org/package/~a"
             ;; 's3-bucket "pkgn.racket-lang.org"
             ))
