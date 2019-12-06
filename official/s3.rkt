@@ -19,17 +19,18 @@
 
   (notify! "update upload in progress: there may be inconsistencies below")
   (log! "upload: uploading everything")
-  (s3-sync static-path
-           s3-bucket
-           #f
-           #:jobs 32
-           #:upload? #t
-           #:delete? #t
-           #:acl "public-read"
-           #:upload-metadata-mapping
-           (hash "pkgs-all.json.gz"
-                 (hash 'Content-Type "application/javascript"
-                       'Content-Encoding "gzip")))
+  (parameterize ([s3-region s3-bucket-region])
+    (s3-sync static-path
+             s3-bucket
+             #f
+             #:jobs 32
+             #:upload? #t
+             #:delete? #t
+             #:acl "public-read"
+             #:upload-metadata-mapping
+             (hash "pkgs-all.json.gz"
+                   (hash 'Content-Type "application/javascript"
+                         'Content-Encoding "gzip"))))
   (log! "upload: done with upload")
   (notify! "")
 
