@@ -5,6 +5,7 @@
          racket/system
          file/gzip
          racket/match
+         aws/s3
          s3-sync
          "common.rkt"
          "notify.rkt")

@@ -156,11 +156,16 @@
                                             x))])
            (t)))))))
 
-(define s3-bucket (get-config s3-bucket
-                              (or (getenv "S3_BUCKET")
-                                  ;; To avoid accidentally changing the live data,
-                                  ;; we use "test" (instead of "pkgo") by default
-                                  "test.racket-lang.org")))
+(define s3-bucket
+  (get-config s3-bucket
+              (or (getenv "S3_BUCKET")
+                  ;; To avoid accidentally changing the live data,
+                  ;; we use "test" (instead of "pkgo") by default
+                  "test.racket-lang.org")))
+(define s3-bucket-region
+  (get-config s3-bucket-region
+              (or (getenv "S3_BUCKET_REGION")
+                  "us-east-1")))
 
 (define beat-s3-bucket (get-config beat-s3-bucket #f))
 (define (heartbeat task)
