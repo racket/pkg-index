@@ -31,9 +31,7 @@
   (delete-file (build-path^ pkgs-path pkg-name)))
 
 (define (package-exists? pkg-name)
-  (or (file-exists? (build-path^ pkgs-path pkg-name))
-      (for/or ([p (in-directory pkgs-path)])
-        (string-ci=? (path->string p) pkg-name))))
+  (file-exists? (build-path^ pkgs-path pkg-name)))
 
 (define (hash-deep-merge ht more-ht)
   (for/fold ([ht ht])
