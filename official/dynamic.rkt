@@ -30,8 +30,15 @@
 (define (package-remove! pkg-name)
   (delete-file (build-path^ pkgs-path pkg-name)))
 
-(define (package-exists? pkg-name)
-  (file-exists? (build-path^ pkgs-path pkg-name)))
+;; returns package in its registered case or #f if no such package
+(define (package-exists-as pkg-name)
+  ;; check for a case-insensitive match, which on a case-sensitive
+  ;; filesystem helps avoid creating problems for a
+  ;; case-insensitive filesystem
+  (for/or ([p (in-list (directory-list pkgs-path))])
+    (define name (path-element->string p))
+    (and (string-ci=? name pkg-name)
+         name)))
 
 (define (hash-deep-merge ht more-ht)
   (for/fold ([ht ht])
@@ -81,28 +88,39 @@
      (response/sexpr #f)]
     [else
      (log! "receiving api/upload!")
-     (for ([(p more-pi) (in-hash pis)])
-       (log! "received api/upload for ~a" p)
-       (define pi 
-         (if (package-exists? p)
-             (package-info p)
-             #hash()))
-       (define new-pi (hash-deep-merge pi more-pi))
-       (define updated-pi
-         (hash-remove
-          (let ([now (current-seconds)])
-            (for/fold ([pi new-pi])
-                      ([k (in-list '(last-edit last-checked last-updated))])
-              (hash-set pi k now)))
-          'checksum))
-       (log! "api/upload old ~v more ~v new ~v updated ~v"
-             (hash-ref pi 'source #f)
-             (hash-ref more-pi 'source #f)
-             (hash-ref new-pi 'source #f)
-             (hash-ref updated-pi 'source #f))
-       (package-info-set! p updated-pi))
-     (signal-update! (hash-keys pis))
-     (response/sexpr #t)]))
+     (cond
+       [(for/or ([p (in-hash-keys pis)])
+          (define old-p (package-exists-as p))
+          (and (not (equal? p old-p))
+               (begin
+                 (log! "case mismatch for package name ~s" p)
+                 #t)))
+        (response/sexpr #f)]
+       [else
+        (for ([(p more-pi) (in-hash pis)])
+          (log! "received api/upload for ~a" p)
+          (define pi 
+            (cond
+              [(package-exists-as p)
+               (package-info p)]
+              [else
+               #hash()]))
+          (define new-pi (hash-deep-merge pi more-pi))
+          (define updated-pi
+            (hash-remove
+             (let ([now (current-seconds)])
+               (for/fold ([pi new-pi])
+                         ([k (in-list '(last-edit last-checked last-updated))])
+                 (hash-set pi k now)))
+             'checksum))
+          (log! "api/upload old ~v more ~v new ~v updated ~v"
+                (hash-ref pi 'source #f)
+                (hash-ref more-pi 'source #f)
+                (hash-ref new-pi 'source #f)
+                (hash-ref updated-pi 'source #f))
+          (package-info-set! p updated-pi))
+        (signal-update! (hash-keys pis))
+        (response/sexpr #t)])]))
 
 (define redirect-to-static
   (get-config redirect-to-static-proc
@@ -347,7 +365,7 @@
      #f]
     [new-package?
      (cond
-      [(or (package-exists? new-name)
+      [(or (package-exists-as new-name)
            (not (valid-name? new-name)))
        (log! "attempt to create package ~v failed" new-name)
        #f]
@@ -361,13 +379,16 @@
       old-name
       (λ ()
         (cond
+          [(not (equal? old-name (package-exists-as old-name)))
+           (log! "case mismatch for package name ~s" old-name)
+           #f]
           [(equal? new-name old-name)
            (log! "updating package ~v" old-name)
            (do-save! (package-info old-name))
            (signal-update! (list new-name))
            #t]
           [(and (valid-name? new-name)
-                (not (package-exists? new-name)))
+                (not (package-exists-as new-name)))
            (log! "updating and renaming package ~v to ~v" old-name new-name)
            (do-save! (package-info old-name))
            (package-remove! old-name)
