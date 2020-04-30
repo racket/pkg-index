@@ -106,7 +106,8 @@
            [(and (equal? new-checksum old-checksum)
                  ;; update if 'modules or 'implies was not present:
                  (and (hash-ref i 'modules #f)
-                      (hash-ref i 'implies #f)))
+                      (hash-ref i 'implies #f)
+                      (hash-ref i 'collection #f)))
             i]
            [else
             (define next-i (update-from-content i))
@@ -122,7 +123,7 @@
 (define (update-from-content i)
   (log! "\tgetting package content for ~v" (hash-ref i 'name))
   (match-define-values
-   (checksum module-paths (cons dependencies implies))
+   (checksum module-paths (list dependencies implies collection))
    (pkg:get-pkg-content
     (pkg:pkg-desc (hash-ref i 'source)
                   #f
@@ -132,14 +133,17 @@
     #:extract-info
     (λ (get-info)
       (if get-info
-        (cons (pkg:extract-pkg-dependencies get-info)
-              (get-info 'implies (λ () empty)))
-        (cons empty empty)))))
+        (list (pkg:extract-pkg-dependencies get-info)
+              (get-info 'implies (λ () empty))
+              (get-info 'collection (λ () #f)))
+        (list empty empty #f)))))
                           
   (package-begin
    (define* i (hash-set i 'modules module-paths))
    (define* i (hash-set i 'dependencies dependencies))
    (define* i (hash-set i 'implies implies))
+   ;; avoid conflation of symbols and strings in JSON
+   (define* i (hash-set i 'collection (if (eq? collection 'multi) (list 'multi) collection)))
    i))
 
 (define (do-update! pkgs)
