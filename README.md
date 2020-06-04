@@ -70,10 +70,11 @@ Common configuration keys:
       string (hex; forty characters long, i.e. 20 bytes of data,
       hex-encoded), used only when `github-client_id` is used
 
- - `s3-bucket` - string; defaults to the contents of the environment
-   variable `S3_BUCKET`, if it is defined; otherwise, to
+ - `s3-bucket` - string or `#f`; defaults to the contents of the
+   environment variable `S3_BUCKET`, if it is defined; otherwise, to
    `test.racket-lang.org`. AWS credentials are found by the `s3`
-   package, typically from `~/.aws-keys`.
+   package, typically from `~/.aws-keys`. If set to `#f`, S3
+   synchronization will be disabled.
 
  - `s3-bucket-region` - string; defaults to the contents of the
    environment variable `S3_BUCKET_REGION`, if it is defined;

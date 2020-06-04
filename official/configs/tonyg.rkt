@@ -4,7 +4,7 @@
 (require web-server/http)
 (require "../main.rkt")
 (define-runtime-path here ".")
-(main (hash 's3cmd-path (build-path here "private/tonyg-s3cmd.py")
+(main (hash 's3-bucket #f
             'redirect-to-static-proc
             (lambda (req)
               (log-info "Would redirect to static version of ~a"
