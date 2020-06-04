@@ -75,6 +75,10 @@ Common configuration keys:
    `test.racket-lang.org`. AWS credentials are found by the `s3`
    package, typically from `~/.aws-keys`.
 
+ - `s3-bucket-region` - string; defaults to the contents of the
+   environment variable `S3_BUCKET_REGION`, if it is defined;
+   otherwise, to `us-east-1`.
+
  - `beat-s3-bucket` - string or #f; defaults to #f. A bucket name for
    regsitering heartbeats, or #f to disable heartbeats.
 
