@@ -2,12 +2,15 @@
 
 ## Dependencies
 
-Requires the following packages to be installed:
+Requires the following packages (and their dependencies) to be installed:
 
- - `plt-service-monitor`
- - `web-server-lib`
- - `git://github.com/samth/bcrypt.rkt`
-    - which in turn depends on `dynext-lib`
+```shell
+raco pkg install --skip-installed \
+    plt-service-monitor \
+    web-server-lib \
+    bcrypt \
+    s3-sync
+```
 
 ## Running
 
