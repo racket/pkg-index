@@ -425,17 +425,25 @@
       #f))])
 
 (define-authenticated-json-post-rpc-service api/package/curate
+  [(['package-names package-name-strings] ['ring proposed-new-ring])
+   (curate-packages! package-name-strings proposed-new-ring)]
   [(['pkg pkg] ['ring ring])
-   (cond
-     [(curation-administrator? (current-user))
-      (define i (package-info pkg))
-      (package-info-set!
-       pkg
-       (hash-set i 'ring (min 2 (max 0 ring))))
-      (signal-static! (list pkg))
-      #t]
-     [else
-      #f])])
+   (curate-packages! (list pkg) ring)])
+
+(define (curate-packages! package-name-strings proposed-new-ring)
+  (cond [(and (curation-administrator? (current-user))
+              (list? package-name-strings)
+              (andmap string? package-name-strings)
+              (integer? proposed-new-ring)
+              (>= proposed-new-ring 0)
+              (<= proposed-new-ring 2))
+         (for [(pkg (in-list package-name-strings))]
+           (define i (package-info pkg))
+           (package-info-set! pkg (hash-set i 'ring proposed-new-ring)))
+         (signal-static! package-name-strings)
+         #t]
+        [else
+         #f]))
 
 (define (package-author? p u)
   (define i (package-info p))
