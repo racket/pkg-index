@@ -12,6 +12,7 @@
               (redirect-to "http://localhost/~tonyg/pkg-catalog-static/FIXME"))
             'email-sender-address "tonyg@racket-lang.org"
             'port 8445
+            'ssl? #f
             'atom-package-url-format-string
               "https://localhost/~~tonyg/pkg-catalog-static/package/~a"
             ))
