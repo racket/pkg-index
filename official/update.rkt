@@ -33,30 +33,36 @@
                     (exn-message x)
                     pkg-name)
                    x2))])
-            (define i (package-info pkg-name))
-            (define checksum-error/unredacted
-              (let ([the-string-port (open-output-string)])
-                (parameterize ([current-error-port the-string-port])
-                  ((error-display-handler)
-                   (exn-message x)
-                   x))
-                (get-output-string the-string-port)))
-            (define checksum-error
-              (let ([secret (github-client_secret)])
-                (if secret
-                    (regexp-replace* (regexp secret)
-                                     checksum-error/unredacted
-                                     "REDACTED")
-                    checksum-error/unredacted)))
-            (cond
-              [(equal? (hash-ref i 'checksum-error) checksum-error)
-               ;; Same old failure, so don't updated
-               #f]
-              [else
-               (package-info-set!
-                pkg-name
-                (hash-set i 'checksum-error checksum-error))
-               #t])))])
+            (package-begin
+             (define* i (package-info pkg-name))
+             (define checksum-error/unredacted
+               (let ([the-string-port (open-output-string)])
+                 (parameterize ([current-error-port the-string-port])
+                   ((error-display-handler)
+                    (exn-message x)
+                    x))
+                 (get-output-string the-string-port)))
+             (define checksum-error
+               (let ([secret (github-client_secret)])
+                 (if secret
+                     (regexp-replace* (regexp secret)
+                                      checksum-error/unredacted
+                                      "REDACTED")
+                     checksum-error/unredacted)))
+             (define updated?
+               (or (not (equal? (package-ref i 'checksum-error) checksum-error))
+                   (eq? -inf.0 (package-ref i 'last-updated))))
+             (define now (current-seconds))
+             (define* i
+               (hash-set i 'last-checked now))
+             (define* i
+               (if updated?
+                   (hash-set i 'last-updated now)
+                   i))
+             (package-info-set!
+              pkg-name
+              (hash-set i 'checksum-error checksum-error))
+             updated?)))])
     (define i (package-info pkg-name))
     (define old-checksum (package-ref i 'checksum))
     (define now (current-seconds))
