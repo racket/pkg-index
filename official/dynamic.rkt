@@ -91,7 +91,8 @@
      (cond
        [(for/or ([p (in-hash-keys pis)])
           (define old-p (package-exists-as p))
-          (and (not (equal? p old-p))
+          (and old-p
+               (not (equal? p old-p))
                (begin
                  (log! "case mismatch for package name ~s" p)
                  #t)))
