@@ -16,7 +16,10 @@
          web-server/http
          web-server/http/basic-auth
          web-server/servlet-env
-         infrastructure-userdb
+         (only-in infrastructure-userdb
+                  user-password-correct?
+                  lookup-user
+                  user-exists?)
          "../basic/main.rkt"
          "build-update.rkt"
          "common.rkt"
@@ -83,7 +86,7 @@
      (log! "api/upload! not curator, email was ~v" email)
      (response/sexpr #f)]
     [else
-     (log! "receiving api/upload!")
+     (log! "receiving api/upload!, email is ~v" email)
      (cond
        [(for/or ([p (in-hash-keys pis)])
           (define old-p (package-exists-as p))
@@ -146,9 +149,10 @@
      "authentication-required"]))
 
 (define (ensure-authenticate/email+passwd email passwd body-fun)
-  (cond [(not (user-exists? userdb email)) "new-user"]
-        [(not (user-password-correct? (lookup-user userdb email) passwd)) "failed"]
-        [else (parameterize ([current-user email]) (body-fun))]))
+  (log! "Checking credentials of user ~v" email)
+  (if (user-password-correct? (lookup-user userdb email) passwd)
+      (parameterize ([current-user email]) (body-fun))
+      "not-authenticated"))
 
 (define *cors-headers*
   (list (header #"Access-Control-Allow-Origin" #"*")
@@ -178,8 +182,7 @@
           (and (string? email)
                (string? passwd)
                (match (ensure-authenticate/email+passwd email passwd (λ () #t))
-                 ["failed" #f]
-                 ["new-user" #f]
+                 ["not-authenticated" #f]
                  [#t (hasheq 'curation (curation-administrator? email)
                              'superuser (superuser? email))]))))))
 

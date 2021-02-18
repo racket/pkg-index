@@ -32,7 +32,7 @@
 (module+ main
   (require racket/cmdline)
   (command-line #:program "upload"
-                #:args (email password [urlstr "https://pkgd.racket-lang.org/api/package/modify"])
+                #:args (email password [urlstr "https://pkgd.racket-lang.org/api/package/modify-all"])
                 (if (upload! email
                              password
                              (string->url urlstr)

@@ -10,7 +10,6 @@
               (log-info "Would redirect to static version of ~a"
                         (url->string (request-uri req)))
               (redirect-to "http://localhost/~tonyg/pkg-catalog-static/FIXME"))
-            'email-sender-address "tonyg@racket-lang.org"
             'port 8445
             'ssl? #f
             'atom-package-url-format-string
