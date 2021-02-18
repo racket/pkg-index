@@ -9,6 +9,7 @@
          web-server/http/id-cookie
          pkg/private/stage
          plt-service-monitor/beat
+         infrastructure-userdb
          "config.rkt")
 
 ;; This f o f^-1 is applied because it throws an error if file is not
@@ -25,7 +26,9 @@
 
 (make-directory* root)
 (define users.new-path (get-config users.new-path (build-path root "users.new")))
-(make-directory* users.new-path)
+(define userdb (userdb-config users.new-path
+                              #f ;; write not permitted. The racket-pkg-website does all writes.
+                              ))
 
 ;; Since package downloads don't normally use the GitHub API anymore,
 ;; allow the GitHub options to be #f and make the default load strings

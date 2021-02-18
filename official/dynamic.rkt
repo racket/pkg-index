@@ -16,7 +16,7 @@
          web-server/http
          web-server/http/basic-auth
          web-server/servlet-env
-         (prefix-in bcrypt- bcrypt)
+         infrastructure-userdb
          "../basic/main.rkt"
          "build-update.rkt"
          "common.rkt"
@@ -75,16 +75,12 @@
 (define (api/upload req)
   (define req-data (read (open-input-bytes (or (request-post-data/raw req) #""))))
   (match-define (list email given-password pis) req-data)
-  (define password-path (build-path^ users.new-path email))
-  (define expected-password (file->bytes password-path))
-  (define password-okay? (bcrypt-check expected-password given-password))
-  (define curator? (curation-administrator? email))
   (cond
-    [(not (and password-okay? curator?))
-     (log! "api/upload! failed pass(~a) curator(~a) email was ~v"
-           password-okay?
-           curator?
-           email)
+    [(not (user-password-correct? (lookup-user userdb email) given-password))
+     (log! "api/upload! failed pass, email was ~v" email)
+     (response/sexpr #f)]
+    [(not (curation-administrator? email))
+     (log! "api/upload! not curator, email was ~v" email)
      (response/sexpr #f)]
     [else
      (log! "receiving api/upload!")
@@ -150,77 +146,9 @@
      "authentication-required"]))
 
 (define (ensure-authenticate/email+passwd email passwd body-fun)
-  (define passwd-path (build-path^ users.new-path email))
-  (cond [(not (file-exists? passwd-path))
-         "new-user"]
-        [(not (bcrypt-check (file->bytes passwd-path) (string->bytes/utf-8 passwd)))
-         "failed"]
-        [else
-         (parameterize ([current-user email]) (body-fun))]))
-
-;; email-codes: (Hashtable String String)
-;; Key: email address.
-;; Value: code sent out in email and required for registration of a new password.
-(define email-codes (make-hash))
-;; TODO: Expire codes.
-
-(define (generate-a-code! email)
-  (define correct-email-code
-    (bytes->hex-string
-     (with-input-from-file "/dev/urandom" (lambda () (read-bytes 12)))))
-  (hash-set! email-codes email correct-email-code)
-  correct-email-code)
-
-(define (codes-equal? a b)
-  ;; Compare case-insensitively since people are weird and might
-  ;; type the thing in.
-  (string-ci=? a b))
-
-(define (check-code-or email passwd email-code k-true k-false)
-  (cond [(and (not (string=? "" email-code))
-              (hash-ref email-codes email #f))
-         => (λ (correct-email-code)
-              (cond
-                [(codes-equal? correct-email-code email-code)
-                 (define passwd-path (build-path^ users.new-path email))
-                 (display-to-file (bcrypt-encode (string->bytes/utf-8 passwd))
-                                  passwd-path
-                                  #:exists 'replace)
-                 (hash-remove! email-codes email)
-                 (k-true)]
-                [else
-                 "wrong-code"]))]
-        [else
-         (k-false)
-         #f]))
-
-(define (send-password-reset-email! email)
-  (send-mail-message
-   (get-config email-sender-address "pkgs@racket-lang.org")
-   "Account password reset for Racket Package Catalog"
-   (list email)
-   empty empty
-   (list
-    "Someone tried to login with your email address for an account on the Racket Package Catalog, but failed."
-    "If this was you, please use this code to reset your password:"
-    ""
-    (generate-a-code! email)
-    ""
-    "This code will expire, so if it is not available, you'll have to try to again.")))
-
-(define (send-account-registration-email! email)
-  (send-mail-message
-   (get-config email-sender-address "pkgs@racket-lang.org")
-   "Account confirmation for Racket Package Catalog"
-   (list email)
-   empty empty
-   (list
-    "Someone tried to register your email address for an account on the Racket Package Catalog."
-    "If you want to proceed, use this code:"
-    ""
-    (generate-a-code! email)
-    ""
-    "This code will expire, so if it is not available, you'll have to try to register again.")))
+  (cond [(not (user-exists? userdb email)) "new-user"]
+        [(not (user-password-correct? (lookup-user userdb email) passwd)) "failed"]
+        [else (parameterize ([current-user email]) (body-fun))]))
 
 (define *cors-headers*
   (list (header #"Access-Control-Allow-Origin" #"*")
@@ -246,26 +174,14 @@
   (response/json
    (and (hash? req-data)
         (let ((email (hash-ref req-data 'email #f))
-              (passwd (hash-ref req-data 'passwd #f))
-              (code (hash-ref req-data 'code #f)))
+              (passwd (hash-ref req-data 'passwd #f)))
           (and (string? email)
                (string? passwd)
-               (string? code)
-               (let ()
-                 (define (on-successful-authentication)
-                   (hasheq 'curation (curation-administrator? email)
-                           'superuser (superuser? email)))
-                 (match (ensure-authenticate/email+passwd email passwd (λ () #t))
-                   ["failed"
-                    (check-code-or email passwd code
-                                   (λ () (on-successful-authentication))
-                                   (λ () (send-password-reset-email! email)))]
-                   ["new-user"
-                    (check-code-or email passwd code
-                                   (λ () #t)
-                                   (λ () (send-account-registration-email! email)))]
-                   [#t
-                    (on-successful-authentication)])))))))
+               (match (ensure-authenticate/email+passwd email passwd (λ () #t))
+                 ["failed" #f]
+                 ["new-user" #f]
+                 [#t (hasheq 'curation (curation-administrator? email)
+                             'superuser (superuser? email))]))))))
 
 (define (authenticated-json-post-rpc-service req handler)
   (response/json

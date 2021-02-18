@@ -8,7 +8,7 @@ Requires the following packages (and their dependencies) to be installed:
 raco pkg install --skip-installed \
     plt-service-monitor \
     web-server-lib \
-    bcrypt \
+    https://github.com/racket/infrastructure-userdb.git#main \
     s3-sync
 ```
 
