@@ -79,7 +79,7 @@
   (define req-data (read (open-input-bytes (or (request-post-data/raw req) #""))))
   (match-define (list email given-password pis) req-data)
   (cond
-    [(not (user-password-correct? (lookup-user userdb email) given-password))
+    [(not (user-password-correct? (lookup-user userdb email) (bytes->string/utf-8 given-password)))
      (log! "api/upload! failed pass, email was ~v" email)
      (response/sexpr #f)]
     [(not (curation-administrator? email))
