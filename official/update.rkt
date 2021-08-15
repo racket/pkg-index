@@ -16,8 +16,14 @@
   (update-checksums #t pkgs))
 
 (define (update-checksums force? pkgs)
-  (filter (curry update-checksum force?) pkgs))
+  (filter (λ (pkg-name)
+            (cond
+              [(package-exists? pkg-name)
+               (update-checksum force? pkg-name)]
+              [else (log! "update-checksums: invariant broken; ~a doesn't exist" pkg-name)]))
+          pkgs))
 
+;; precondition: pkg-name must exist
 (define (update-checksum force? pkg-name)
   (log! "update-checksum ~v ~v" force? pkg-name)
   (with-handlers
