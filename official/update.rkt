@@ -20,7 +20,9 @@
             (cond
               [(package-exists? pkg-name)
                (update-checksum force? pkg-name)]
-              [else (log! "update-checksums: invariant broken; ~a doesn't exist" pkg-name)]))
+              [else (log! "update-checksums: invariant broken; ~a doesn't exist" pkg-name)
+                    ;; considered not update
+                    #f]))
           pkgs))
 
 ;; precondition: pkg-name must exist
