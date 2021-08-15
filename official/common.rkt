@@ -62,6 +62,9 @@
   (sort (map path->string (directory-list pkgs-path))
         string-ci<=?))
 
+(define (package-exists? pkg-name)
+  (file-exists? (build-path^ pkgs-path pkg-name)))
+
 (define (read-package-info pkg-name)
   (with-handlers ([exn:fail?
                    (λ (x)
@@ -72,7 +75,7 @@
     (define p
       (build-path^ pkgs-path pkg-name))
     (define v
-      (if (file-exists? p)
+      (if (package-exists? pkg-name)
           (file->value p)
           (hasheq)))
     (define ht
