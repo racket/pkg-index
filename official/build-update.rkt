@@ -17,7 +17,7 @@
    (for/or ([h (in-list hs)])
      (match h
        [(regexp
-         #rx#"^ETag: (.*?)$"
+         #rx#"^(?i:ETag): (.*?)$"
          (list _ tag-bys))
         tag-bys]
        [_
