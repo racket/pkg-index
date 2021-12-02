@@ -30,6 +30,7 @@
                    #:upload? #t
                    #:delete? #t
                    #:acl "public-read"
+                   #:log (lambda (str) (log! "~a" str))
                    #:upload-metadata-mapping
                    (hash "pkgs-all.json.gz"
                          (hash 'Content-Type "application/javascript"
