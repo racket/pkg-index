@@ -137,7 +137,7 @@
 (define (update-from-content i)
   (log! "\tgetting package content for ~v" (hash-ref i 'name))
   (match-define-values
-   (checksum module-paths (list dependencies implies collection))
+   (checksum module-paths (list deps rt-deps implies collection))
    (pkg:get-pkg-content
     (pkg:pkg-desc (hash-ref i 'source)
                   #f
@@ -148,13 +148,15 @@
     (λ (get-info)
       (if get-info
         (list (pkg:extract-pkg-dependencies get-info)
+              (pkg:extract-pkg-dependencies get-info #:build-deps? #f)
               (get-info 'implies (λ () empty))
               (get-info 'collection (λ () #f)))
         (list empty empty #f)))))
-                          
+
   (package-begin
    (define* i (hash-set i 'modules module-paths))
-   (define* i (hash-set i 'dependencies dependencies))
+   (define* i (hash-set i 'dependencies deps))
+   (define* i (hash-set i 'rt-dependencies rt-deps))
    (define* i (hash-set i 'implies implies))
    ;; avoid conflation of symbols and strings in JSON
    (define* i (hash-set i 'collection (if (eq? collection 'multi) (list 'multi) collection)))

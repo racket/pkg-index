@@ -108,6 +108,7 @@
                 'ring (hash-ref ht 'ring 2)
                 'collection (hash-ref ht 'collection #f)
                 'dependencies (hash-ref ht 'dependencies empty)
+                'rt-dependencies (hash-ref ht 'rt-dependencies empty)
                 'implies (hash-ref ht 'implies empty)
                 'modules (hash-ref ht 'modules empty)
                 'conflicts
