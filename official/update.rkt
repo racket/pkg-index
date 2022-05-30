@@ -151,7 +151,7 @@
               (pkg:extract-pkg-dependencies get-info #:build-deps? #f)
               (get-info 'implies (λ () empty))
               (get-info 'collection (λ () #f)))
-        (list empty empty #f)))))
+        (list empty empty empty #f)))))
 
   (package-begin
    (define* i (hash-set i 'modules module-paths))
