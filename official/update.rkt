@@ -136,6 +136,8 @@
        (package-info-set! pkg-name i)))
     changed?))
 
+(define missing (gensym 'missing))
+
 (define (update-from-content i)
   (log! "\tgetting package content for ~v" (hash-ref i 'name))
   (match-define-values
@@ -151,7 +153,7 @@
       (if get-info
         (list (pkg:extract-pkg-dependencies get-info)
               (pkg:extract-pkg-dependencies get-info #:build-deps? #f)
-              (get-info 'license (λ () #f))
+              (get-info 'license (λ () missing))
               (get-info 'implies (λ () empty))
               (get-info 'collection (λ () #f)))
         (list empty empty #f empty #f)))))
@@ -160,7 +162,10 @@
    (define* i (hash-set i 'modules module-paths))
    (define* i (hash-set i 'dependencies deps))
    (define* i (hash-set i 'rt-dependencies rt-deps))
-   (define* i (hash-set i 'license license))
+   (define* i (hash-set i 'license
+                        (cond
+                          [(eq? license missing) #f]
+                          [else (format "~s" license)])))
    (define* i (hash-set i 'implies implies))
    ;; avoid conflation of symbols and strings in JSON
    (define* i (hash-set i 'collection (if (eq? collection 'multi) (list 'multi) collection)))
