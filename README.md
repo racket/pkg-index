@@ -136,7 +136,7 @@ $ mkdir official/root
 Next, copy the packages to `root`:
 
 ```
-$ cp pkgs-copy/pkg official/root/pkgs
+$ cp -r pkgs-copy/pkg official/root/pkgs
 ```
 
 Now, run `racket official/configs/tonyg.rkt`. The outputs will be in the directory `official/static-gen`.
