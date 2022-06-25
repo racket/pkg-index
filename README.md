@@ -2,15 +2,7 @@
 
 ## Dependencies
 
-Requires the following packages (and their dependencies) to be installed:
-
-```shell
-raco pkg install --skip-installed \
-    plt-service-monitor \
-    web-server-lib \
-    https://github.com/racket/infrastructure-userdb.git#main \
-    s3-sync
-```
+Run `raco pkg install` to install all dependencies
 
 ## Running
 
@@ -123,3 +115,28 @@ Configuration keys used by `static.rkt`:
 
  - `beat-upload-task-name` - string; defaults to "pkgd-upload". A task
    name for heartbeats after uploading information for all packages.
+
+
+## Example setup and run
+
+Run:
+
+```
+$ raco pkg catalog-copy https://pkgs.racket-lang.org pkgs-copy
+```
+
+to initialize the set of served packages to those in the package server.
+
+Next, create the directory `root` under `official`
+
+```
+$ mkdir official/root
+```
+
+Next, copy the packages to `root`:
+
+```
+$ cp pkgs-copy/pkg official/root/pkgs
+```
+
+Now, run `racket official/configs/tonyg.rkt`. The outputs will be in the directory `official/static-gen`.
