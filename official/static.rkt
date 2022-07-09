@@ -80,27 +80,15 @@
     (define versions-ht
       (hash-set (hash-ref ht 'versions (hash))
                 'default
-                (hasheq 'source (hash-ref ht 'source "")
+                (hasheq 'source (hash-ref ht 'source)
                         'checksum (hash-ref ht 'checksum ""))))
-
-    (define (hash-ref-or ht ks)
-      (or (for/or ([k (in-list ks)])
-            (hash-ref ht k #f))
-          (error 'hash-ref-or "Keys (~v) not found in ~e" ks ht)))
-
-    (define versions-5.3.6
-      (hash-ref-or versions-ht '("5.3.6" default)))
-    (define source-5.3.6
-      (hash-ref versions-5.3.6 'source))
-    (define checksum-5.3.6
-      (hash-ref versions-5.3.6 'checksum))
 
     (hash-set!
      pkg-ht pkg-name
      (hash-set* ht
                 'name pkg-name
-                'source source-5.3.6
-                'checksum checksum-5.3.6
+                'source (hash-ref ht 'source)
+                'checksum (hash-ref ht 'checksum "")
                 'last-updated (hash-ref ht 'last-updated (current-seconds))
                 'last-checked (hash-ref ht 'last-checked (current-seconds))
                 'last-edit (hash-ref ht 'last-edit (current-seconds))
