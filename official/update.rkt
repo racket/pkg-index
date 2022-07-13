@@ -156,7 +156,7 @@
               (get-info 'license (λ () missing))
               (get-info 'implies (λ () empty))
               (get-info 'collection (λ () #f)))
-        (list empty empty #f empty #f)))))
+        (list empty empty missing empty #f)))))
 
   (package-begin
    (define* i (hash-set i 'modules module-paths))
