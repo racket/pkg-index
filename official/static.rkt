@@ -80,14 +80,14 @@
     (define versions-ht
       (hash-set (hash-ref ht 'versions (hash))
                 'default
-                (hasheq 'source (hash-ref ht 'source)
+                (hasheq 'source (hash-ref ht 'source "")
                         'checksum (hash-ref ht 'checksum ""))))
 
     (hash-set!
      pkg-ht pkg-name
      (hash-set* ht
                 'name pkg-name
-                'source (hash-ref ht 'source)
+                'source (hash-ref ht 'source "")
                 'checksum (hash-ref ht 'checksum "")
                 'last-updated (hash-ref ht 'last-updated (current-seconds))
                 'last-checked (hash-ref ht 'last-checked (current-seconds))
