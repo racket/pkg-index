@@ -118,6 +118,7 @@
            [(not new-checksum)
             i]
            [(and (equal? new-checksum old-checksum)
+                 (equal? (hash-ref i 'content-version #f) content-version)
                  ;; update if 'modules or 'implies was not present:
                  (and (hash-ref i 'modules #f)
                       (hash-ref i 'implies #f)
@@ -134,6 +135,11 @@
        (package-info-set! pkg-name i)))
     changed?))
 
+;; bump this to forcibly update the content
+(define content-version "v1")
+
+(define missing (gensym 'missing))
+
 (define (update-from-content i)
   (log! "\tgetting package content for ~v" (hash-ref i 'name))
   (match-define-values
@@ -149,15 +155,43 @@
       (if get-info
         (list (pkg:extract-pkg-dependencies get-info)
               (get-info 'implies (λ () empty))
-              (get-info 'collection (λ () #f)))
+              (get-info 'collection (λ () missing)))
         (list empty empty #f)))))
                           
   (package-begin
+   (define* i (hash-set i 'content-version content-version))
    (define* i (hash-set i 'modules module-paths))
    (define* i (hash-set i 'dependencies dependencies))
-   (define* i (hash-set i 'implies implies))
-   ;; avoid conflation of symbols and strings in JSON
-   (define* i (hash-set i 'collection (if (eq? collection 'multi) (list 'multi) collection)))
+
+   ;; NOTE: the below contracts coerce symbols to strings, following what
+   ;; the JSON conversion would do
+
+   ;; implies : (or/c (listof (or/c string? (list/c "core")))
+   ;;                 (list/c (list/c "invalid" string?)))
+   (define* i (hash-set i 'implies
+                        (cond
+                          [(and (list? implies)
+                                (andmap (λ (dep) (or (eq? dep 'core) (string? dep)))
+                                        implies))
+                           (map (λ (dep)
+                                  (cond
+                                    [(eq? dep 'core) (list 'core)]
+                                    [else dep]))
+                                implies)]
+                          [else (list (list 'invalid (format "~s" implies)))])))
+
+   ;; collection :: (or/c (list/c "multi")
+   ;;                     (list/c "use-pkg-name")
+   ;;                     #f
+   ;;                     string?
+   ;;                     (list/c "invalid" string?))
+   (define* i (hash-set i 'collection
+                        (cond
+                          [(eq? collection 'multi) (list 'multi)]
+                          [(eq? collection 'use-pkg-name) (list 'use-pkg-name)]
+                          [(eq? collection missing) #f]
+                          [(string? collection) collection]
+                          [else (list 'invalid (format "~s" collection))])))
    i))
 
 (define (do-update! pkgs)
