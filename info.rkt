@@ -9,7 +9,7 @@
                "compatibility-lib"
                "net-lib"
                "web-server-lib"
-               "https://github.com/racket/infrastructure-userdb.git#main"
+               ["https://github.com/racket/infrastructure-userdb.git#main" #:version "0.1"]
                "s3-sync"
                "plt-service-monitor"))
 (define build-deps '("rackunit-lib"))

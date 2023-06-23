@@ -14,6 +14,7 @@
          racket/path
          racket/promise
          plt-service-monitor/beat
+         infrastructure-userdb/display-name
          "../basic/main.rkt"
          "common.rkt"
          "notify.rkt"
@@ -262,18 +263,18 @@
                     (hash-set vht 'source_url
                               (package-url->useful-url (hash-ref vht 'source))))))
         'search-terms
-        (let* ([st (hasheq)]
-               [st (for/fold ([st st])
+        (let* ([st (for/fold ([st #hasheq()])
                              ([t (in-list (hash-ref ht 'tags))])
                      (hash-set st (string->symbol t) #t))]
                [st (hash-set
                     st
                     (string->symbol
                      (format "ring:~a" (hash-ref ht 'ring))) #t)]
-               [st (for/fold ([st st])
-                             ([a (in-list (author->list (hash-ref ht 'author)))])
+               [st (for*/fold ([st st])
+                             ([a (in-list (author->list (hash-ref ht 'author)))]
+                              [tag (in-list (display-name-tags (email->display-name a)))])
                      (hash-set
-                      st (string->symbol (format "author:~a" a)) #t))]
+                      st tag #t))]
                [st (if (empty? (hash-ref ht 'tags))
                        (hash-set st ':no-tag: #t)
                        st)]
