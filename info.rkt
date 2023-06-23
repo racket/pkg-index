@@ -13,3 +13,5 @@
                "s3-sync"
                "plt-service-monitor"))
 (define build-deps '("rackunit-lib"))
+(define license
+  '(Apache-2.0 OR MIT))
